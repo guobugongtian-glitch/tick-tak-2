@@ -750,7 +750,8 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
 <section id="v-orders" class="hide">
   <div class="card row">期間：<input type="month" id="om"><button class="btn" onclick="loadOrders()">表示</button>
     <label><input type="checkbox" id="onp"> 未処理のみ</label></div>
-  <div class="card"><div class="row"><button class="btn" onclick="elogiCsv()">eLogi CSV（✓したEtsyの注文）</button><span class="sub">2件以上✓すると1ファイルにまとめます</span></div><p class="sub" id="elmsg" style="white-space:pre-wrap;margin:4px 0 0"></p></div>
+  <div class="card"><div class="row"><button class="btn" onclick="elogiCsv()">eLogi CSV（✓したEtsyの注文）</button><span class="sub">2件以上✓すると1ファイルにまとめます</span>
+    <a class="btn s" href="https://www.elogi.jp/users/login" target="_blank" rel="noopener" style="text-decoration:none">eLogiを開く ↗</a><a class="btn s" href="https://cpass.ebay.com/" target="_blank" rel="noopener" style="text-decoration:none">CPaSSを開く ↗</a></div><p class="sub" id="elmsg" style="white-space:pre-wrap;margin:4px 0 0"></p></div>
   <div class="tbl"><table><thead><tr><th></th><th>注文日</th><th>注文番号</th><th>品番</th><th>販路</th><th class="n">商品価格</th><th class="n">販売送料</th><th class="n">実送料</th><th class="n">関税</th><th>国</th><th>状態</th><th class="n">仕入値</th><th class="n">利益</th></tr></thead><tbody id="obody"></tbody></table></div>
 </section>
 
@@ -2577,7 +2578,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020202800';
+const BUILD='20261020202836';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
