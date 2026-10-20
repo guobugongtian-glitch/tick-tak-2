@@ -744,7 +744,7 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
 <section id="v-io" class="hide">
   <div class="card">
     <h3 style="margin-top:0">CSVを取り込む</h3>
-    <p class="sub">eBayStockの「実績明細」「出品中一覧」、手持ちの「収支計算表」、Etsyの「注文した商品」（Shop Manager → 設定 → オプション → データをダウンロード → Order Items）のCSV、SpeedPAK（CPaSS）の「送金の詳細」.xlsx を選ぶ（まとめて選んでよい）。同じ品番・同じ月は上書き。</p>
+    <p class="sub">eBayStockの「実績明細」「出品中一覧」、手持ちの「収支計算表」、Etsyの「注文した商品」（Shop Manager → 設定 → オプション → データをダウンロード → Order Items）と「出品一覧」のCSV、SpeedPAK（CPaSS）の「送金の詳細」.xlsx を選ぶ（まとめて選んでよい）。同じ品番・同じ月は上書き。</p>
     <input type="file" id="csv" accept=".csv,.xlsx" multiple><button class="btn" onclick="importCsv()">取り込む</button>
     <p id="iomsg" class="sub"></p>
     <div id="etmatch"></div>
@@ -2026,6 +2026,8 @@ async function importCsv(){
       if(t.includes('操作日')&&t.includes('摘要')){ await loadCardRules(); const ok=await importBank(parseBankCsv(t)); iomsg.textContent=`${f.name}：${ok===false?'銀行明細を取り込めませんでした。':'銀行明細として取り込みました。'}${bankmsg.textContent}`; continue } }
     const rows=/\.xlsx$/i.test(f.name)?await readXlsx(f):parseCsv((await f.text()).replace(/^\uFEFF/,'')); const h=rows.shift()||[]; const ix=Object.fromEntries(h.map((k,i)=>[String(k).trim(),i]));
     if('追跡番号' in ix&&'目的国' in ix&&'支払総額（円）' in ix){ jobs.push({kind:6,rows,ix,h,name:f.name}); continue }
+    // Etsyの「出品一覧」CSV（設定→オプション→データをダウンロード→出品一覧）。在庫として入れる（2026-10-20 友達用）
+    if('TITLE' in ix&&'PRICE' in ix&&'IMAGE1' in ix){ jobs.push({kind:7,rows,ix,h,name:f.name}); continue }
     if('Sale Date' in ix&&'Number of Items' in ix){ iomsg.textContent=`${f.name}：これは注文ごとのCSVです。Etsyは「Order Items」（商品ごと）のほうを選んでください`; return }
     const kind='販売日' in ix?2:'品番' in ix?3:'kno' in ix?1:(h[0]||'').trim().startsWith('社名')?4:('Sale Date' in ix&&'Item Name' in ix)?5:0;
     if(kind===4) rows.unshift(h);
@@ -2035,7 +2037,7 @@ async function importCsv(){
   jobs.sort((a,b)=>a.kind-b.kind||(a.kind===6?String(a.rows[0]?.[0]).localeCompare(String(b.rows[0]?.[0])):a.rows.length-b.rows.length));   // SpeedPAKは古い週から
   SPM=[]; SP_SYNCED=false;
   const done=[];
-  for(const j of jobs){ const r=await [null,importFull,importSales,importListed,importSheet,importEtsy,importSpeedpak][j.kind](j.rows,j.ix,j.h);
+  for(const j of jobs){ const r=await [null,importFull,importSales,importListed,importSheet,importEtsy,importSpeedpak,importEtsyListings][j.kind](j.rows,j.ix,j.h);
     if(!r.ok){ iomsg.textContent=[...done,`${j.name}：${r.msg}`].join(' ／ '); return } done.push(r.msg); iomsg.textContent=done.join(' ／ ')+' …'; }
   iomsg.textContent=done.join(' ／ '); initFilters(); loadItems();
 }
@@ -2196,6 +2198,25 @@ async function importSales(rows, ix){
 // SKU＝品番で突き合わせる。買い手の名前・住所の列は読まない。送料は注文に1回だけなので、その注文の最初の商品に付ける
 // 円は「設定」の為替で計算した仮の数字。手数料は空のまま（Etsyの月次明細から入れる）
 const ETSY_CC={'United States':'US','Israel':'IL','United Kingdom':'GB','Canada':'CA','Australia':'AU','Germany':'DE','France':'FR','Italy':'IT','Spain':'ES','Netherlands':'NL','Switzerland':'CH','Singapore':'SG','Hong Kong':'HK','Taiwan':'TW','Korea, South':'KR','South Korea':'KR','Japan':'JP','New Zealand':'NZ','Ireland':'IE','Belgium':'BE','Sweden':'SE','Denmark':'DK','Norway':'NO','Austria':'AT','Mexico':'MX'};
+// Etsyの出品一覧CSV → 出品中の商品。SKUが数字ならそれを品番に、無ければ空いている品番を振る。同じSKU・同じタイトルの商品がもうあれば入れない
+async function importEtsyListings(rows, ix){
+  const v=(r,k)=>(r[ix[k]]??'').trim(); const rs=rows.filter(r=>v(r,'TITLE'));
+  if(!rs.length) return {ok:false,msg:'Etsyの出品が1行もありません'};
+  const have=await allRows(()=>sb.from('items').select('kno,title').order('kno'));
+  const knos=new Set(have.map(x=>x.kno)), titles=new Set(have.map(x=>(x.title||'').trim()));
+  let next=Math.max(1000,...have.map(x=>x.kno).filter(k=>k<100000))+1; const items=[], given=[]; let skip=0;
+  for(const r of rs){ const t=v(r,'TITLE'), sku=v(r,'SKU');
+    if(titles.has(t)||(/^\d+$/.test(sku)&&knos.has(+sku))){ skip++; continue }
+    let kno; if(/^\d+$/.test(sku)) kno=+sku; else { while(knos.has(next)) next++; kno=next; given.push({kno,t}) }
+    knos.add(kno); titles.add(t);
+    const photos=[1,2,3,4,5,6,7,8,9,10].map(i=>v(r,'IMAGE'+i)).filter(Boolean);
+    const cur=v(r,'CURRENCY_CODE')||'USD', price=+v(r,'PRICE').replace(/[,$]/g,'')||null;
+    items.push({kno,status:'listed',location_status:'出品中',title:t,price_usd:cur==='USD'?price:null,photos:photos.length?photos:null,
+      memo:'EtsyのCSVから'+(cur!=='USD'&&price?`（値段 ${price} ${cur}）`:'')+(/^\d+$/.test(sku)?'':'（SKUなし→品番を振った）')}) }
+  for(let i=0;i<items.length;i+=500){ const {error}=await sb.from('items').insert(items.slice(i,i+500)); if(error) return {ok:false,msg:'Etsyの出品の取込失敗：'+error.message} }
+  etmatch.innerHTML=given.length?`<div class="card" style="margin-top:8px"><b>Etsyの出品のSKUに、この品番を入れてください</b><p class="sub">SKUが品番と同じだと、売れたときに自動で「売れた」になります。仕入値・仕入日は商品を開いて入れてください。</p><div class="tbl"><table><thead><tr><th>品番（SKUに入れる）</th><th>Etsyのタイトル</th></tr></thead><tbody>${given.map(g=>`<tr><td><b>${g.kno}</b></td><td>${g.t.replace(/[<>&]/g,'')}</td></tr>`).join('')}</tbody></table></div></div>`:'';
+  return {ok:true,msg:`Etsyの出品 ${items.length}件を「出品中」に入れました${skip?`（${skip}件はもう入っているので飛ばしました）`:''}${given.length?`。${given.length}件はSKUが空なので品番を振りました（下の表）`:''}`};
+}
 async function importEtsy(rows, ix){
   const v=(r,k)=>(r[ix[k]]??'').trim(); const num=(r,k)=>{ const x=v(r,k).replace(/[$,\s]/g,''); return x===''||isNaN(+x)?0:+x };
   const day=s=>{ let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/); if(m) return `${m[3].length===2?'20'+m[3]:m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
@@ -2405,7 +2426,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020142914';
+const BUILD='20261020165003';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
