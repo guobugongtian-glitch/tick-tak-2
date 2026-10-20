@@ -927,7 +927,7 @@ function saveSettings(){ const s={fx:+s_fx.value,fee:+s_fee.value,pay:+s_pay.val
 function profit(priceUsd, shipUsd, cost, actShip){
   const s=getS(); const gross=(+priceUsd + +(shipUsd||0))*s.fx;
   if(!priceUsd||!cost) return null;
-  const p = gross - gross*s.fee/100 - gross*s.pay/100 - cost - (actShip ?? s.ship);
+  const p = gross - gross*s.fee/100 - gross*s.pay/100 - cost - (actShip ?? s.ship) - HANDLING;
   return {p, r: p/gross*100};
 }
 const fmtP = x => x ? `利益 ${yen(x.p)}円 (${x.r.toFixed(0)}%)` : '—';
@@ -976,7 +976,9 @@ const shipRule=o=>{ const c=(o.country||'').toUpperCase(), base=SHIP_RULE[c]??SH
   if(isEtsy(o)&&(!c||c==='US')) return ETSY_SHIP;
   return isEbay(o)&&c==='US'?base+Math.round((o.item_price_jpy||0)*EBAY_US_DUTY):base };
 const hasShip=o=>o.ship_actual_jpy>=1000;
-const shipOf=o=>hasShip(o)?o.ship_actual_jpy:shipRule(o);
+// 1本ごとにかかる作業料（ワンロックなど）。送料に足して計算する。友達用は2,200円（build_friend.py が書き換える）
+const HANDLING=2200;
+const shipOf=o=>(hasShip(o)?o.ship_actual_jpy:shipRule(o))+HANDLING;
 // 1回で1000件までしか返らないので、全部そろうまで続きを読む
 async function allRows(build){ const out=[]; for(let i=0;;i+=1000){ const {data,error}=await build().range(i,i+999);
   if(error||!data?.length) break; out.push(...data); if(data.length<1000) break } return out; }
@@ -2443,7 +2445,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020172221';
+const BUILD='20261020174009';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
