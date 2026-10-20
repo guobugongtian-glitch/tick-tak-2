@@ -543,6 +543,8 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
 /* 友達用：Etsyだけ。eBayの画面を隠す */
 #v-items .stl,#v-items .st,th.st,#soldcard,#rvcard,#ebmsg,#ebpol,.row:has(> button[onclick="ebayConnect()"]),
 #phbtn,#verbtn,#chkbtn,#revbtn,#endbtn,#qbtn,#pubbtn,button[onclick="lookupSpecs()"],button[onclick="otherTitles()"],
+/* Etsyのアプリが審査中のあいだは、Etsyとつなぐ機能も隠す（審査が通ったらこの行を消す） */
+button[onclick="etsyDraft()"],.row:has(> button[onclick="etsyConnect()"]),
 label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_policy"]),label:has(> input[name="store_cat1"]),label:has(> select[name="ebay_condition"]){display:none!important}
 </style>
 </head>
@@ -2482,7 +2484,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020181147';
+const BUILD='20261020181824';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
