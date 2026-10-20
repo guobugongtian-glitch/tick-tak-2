@@ -944,7 +944,7 @@ async function boot(){
   if(AUTH_TYPE&&!window.__pwSet){ $('setpw').classList.remove('hide'); return }
   $('login').classList.add('hide'); $('app').classList.remove('hide');
   const s=getS(); s_fx.value=s.fx; s_fee.value=s.fee; s_pay.value=s.pay; s_ship.value=s.ship;
-  initFilters(); initDialog(); initPf(); loadItems(); loadCardRules(); desctpl.value=getDescTpl(); loadHero(); loadReviewCount(); ebayOrders(true); etsyOrders(true); shopeeOrders(true); lgyear.value=new Date().getFullYear(); lgstart.value=new Date(Date.now()+9*36e5).toISOString().slice(0,10);
+  initFilters(); initDialog(); initPf(); loadItems(); loadCardRules(); if(AUTO_LOOKUP) autoModels().then(n=>{ if(n){ initFilters(); loadItems() } }); desctpl.value=getDescTpl(); loadHero(); loadReviewCount(); ebayOrders(true); etsyOrders(true); shopeeOrders(true); lgyear.value=new Date().getFullYear(); lgstart.value=new Date(Date.now()+9*36e5).toISOString().slice(0,10);
 }
 
 function go(v){ document.querySelector(`nav button[data-v="${v}"]`).click(); if(matchMedia('(max-width:700px)').matches) document.querySelector('nav button.mo').classList.add('on'); }
@@ -2064,7 +2064,7 @@ async function importCsv(){
   const done=[];
   for(const j of jobs){ const r=await [null,importFull,importSales,importListed,importSheet,importEtsy,importSpeedpak,importEtsyListings][j.kind](j.rows,j.ix,j.h);
     if(!r.ok){ iomsg.textContent=[...done,`${j.name}：${r.msg}`].join(' ／ '); return } done.push(r.msg); iomsg.textContent=done.join(' ／ ')+' …'; }
-  iomsg.textContent=done.join(' ／ '); initFilters(); loadItems();
+  iomsg.textContent=done.join(' ／ '); if(AUTO_LOOKUP){ const n=await autoModels(); if(n) iomsg.textContent+=` ／ ${n}本に型番を自動で付けました` } initFilters(); loadItems();
 }
 
 // .xlsx は表計算の読み取り部品（SheetJS）を使うときだけ読み込む
@@ -2224,8 +2224,8 @@ async function importSales(rows, ix){
 // 円は「設定」の為替で計算した仮の数字。手数料は空のまま（Etsyの月次明細から入れる）
 const ETSY_CC={'United States':'US','Israel':'IL','United Kingdom':'GB','Canada':'CA','Australia':'AU','Germany':'DE','France':'FR','Italy':'IT','Spain':'ES','Netherlands':'NL','Switzerland':'CH','Singapore':'SG','Hong Kong':'HK','Taiwan':'TW','Korea, South':'KR','South Korea':'KR','Japan':'JP','New Zealand':'NZ','Ireland':'IE','Belgium':'BE','Sweden':'SE','Denmark':'DK','Norway':'NO','Austria':'AT','Mexico':'MX'};
 // Etsyの出品一覧CSV → 出品中の商品。SKUが数字ならそれを品番に、無ければ空いている品番を振る。同じSKU・同じタイトルの商品がもうあれば入れない
-const ETSY_AUTO_ITEM=true;
-const AUTO_LOOKUP=true;  // 友達用では true（商品を開いたらスペック・タイトル案を自動で出す）  // 友達用では true（build_friend.py が書き換える）
+const ETSY_AUTO_ITEM=true;  // 友達用では true（build_friend.py が書き換える）
+const AUTO_LOOKUP=true;  // 友達用では true：型番を自動で付け、商品を開いたらスペック・タイトル案を自動で出す
 async function importEtsyListings(rows, ix){
   const v=(r,k)=>(r[ix[k]]??'').trim(); const rs=rows.filter(r=>v(r,'TITLE'));
   if(!rs.length) return {ok:false,msg:'Etsyの出品が1行もありません'};
@@ -2449,6 +2449,18 @@ async function importDrafts(){ const f=djson.files[0]; if(!f){ djmsg.textContent
   djmsg.textContent=`下書き${added}本を入れました`+(made.length?`（品番 ${made[0]}〜${made[made.length-1]}）`:'')+(skipped?`。読み込み済み${skipped}本は飛ばしました`:''); initFilters(); loadItems(); }
 
 // 型番が付いていない商品を、タイトルに型番が含まれるかでつなぐ（長い型番を優先。付いているものは触らない）
+// 型番を自動で付ける（友達用で起動時・取込のあとに動く）。型番の無い商品のタイトルから型番を読み、型番マスタを作ってつなぐ。
+// スペックの Brand と Reference Number も空なら入れる（ほかのセラーの検索・タイトル案に使う）
+async function autoModels(){ const its=await allRows(()=>sb.from('items').select('kno,title,specs').is('research_id',null).order('kno'));
+  const g={}; its.forEach(i=>{ const mk=modelKey(i.title); if(!mk) return; (g[mk.name]??={brand:mk.brand,its:[]}).its.push(i) });
+  const names=Object.keys(g); if(!names.length) return 0;
+  const {data,error}=await sb.from('research').upsert(names.map(n=>({name:n,brand:g[n].brand,model:n.slice(g[n].brand.length).trim()||null})),{onConflict:'name'}).select('id,name');
+  if(error) return 0; const id=Object.fromEntries(data.map(r=>[r.name,r.id])); let n=0;
+  for(const nm of names){ const x=g[nm]; for(const i of x.its){ const sp={...(i.specs||{})}; if(!sp.Brand) sp.Brand=x.brand;
+      const ref=/\d/.test(nm.slice(x.brand.length))?nm.slice(x.brand.length).trim():((i.title||'').toUpperCase().match(/\b[0-9][0-9A-Z]{2,3}-[0-9A-Z]{3,4}\b/)||[])[0];
+      if(ref&&!sp['Reference Number']) sp['Reference Number']=ref;
+      const {error:e}=await sb.from('items').update({research_id:id[nm],specs:sp}).eq('kno',i.kno); if(!e) n++ } }
+  return n }
 async function linkResearch(){ lkmsg.textContent=' 調べています…';
   const rs=(await allRows(()=>sb.from('research').select('id,model').order('id'))).filter(r=>r.model&&r.model.trim().length>=4).sort((a,b)=>b.model.length-a.model.length);
   const its=await allRows(()=>sb.from('items').select('kno,title').is('research_id',null).order('kno'));
@@ -2458,7 +2470,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020175311';
+const BUILD='20261020175415';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
