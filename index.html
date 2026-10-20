@@ -1766,6 +1766,7 @@ async function taxDoc(kind,fmt0){ const fmt=txfmt.value||fmt0, y=txy.value, from
     body=rows.map(x=>[x.d.replace(/-/g,'/'),...x.a]);
     const noName=buy.filter(r=>!memoLine(r.memo,'出品者')||!memoLine(r.memo,'住所')).length;
     foot=[['買受',`${buy.length}件`,'','','',buy.reduce((a,r)=>a+(r.cost_jpy||0),0)],['売却',`${os.length}件`,'','','',os.reduce((a,o)=>a+(o.item_price_jpy||0),0)]];
+    { const {count:nd}=await sb.from('items').select('kno',{count:'exact',head:true}).is('purchased_on',null); if(nd) notes.push(`仕入日が入っていない商品が${nd}件あり、買受には出ていません（eBayStockから取り込んだ分）。その期間の買受はGoogleの仕入れ台帳が記録です。`) }
     if(noName) notes.push(`買受のうち${noName}件は相手方の氏名か住所が空です（仕入れ台帳の「出品者」「住所」に入れると、ここに出ます）。`);
     notes.push('売却の相手方は販路の注文番号で記録しています。氏名・住所まで要るかは、管轄の警察署に確認してください。','職業・年齢の欄は入れていません（ネット取引で相手を確かめた方法は「確認の方法」に販路と取引URLを入れています）。');
   }
@@ -2668,7 +2669,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020203707';
+const BUILD='20261020203718';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
