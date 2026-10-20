@@ -1,6 +1,6 @@
 {
- "name": "Watch Stock",
- "short_name": "Watch Stock",
+ "name": "Tick Tak",
+ "short_name": "Tick Tak",
  "start_url": "./",
  "scope": "./",
  "display": "standalone",

@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Watch Stock</title>
+<title>Tick Tak</title>
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#f2f2f7">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Watch Stock">
+<meta name="apple-mobile-web-app-title" content="Tick Tak">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -551,7 +551,7 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
 <body>
 
 <div id="login" class="card hide">
-  <h3>Watch Stock ログイン</h3>
+  <h3>Tick Tak ログイン</h3>
   <div class="row"><input id="em" type="email" placeholder="メールアドレス" style="flex:1"></div>
   <div class="row"><input id="pw" type="password" placeholder="パスワード" style="flex:1"></div>
   <div class="row"><button class="btn" onclick="login()">ログイン</button><span id="lmsg" class="sub"></span></div>
@@ -567,7 +567,7 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
 
 <div id="app" class="hide">
 <header>
-  <b>Watch Stock</b>
+  <b>Tick Tak</b>
   <nav>
     <button data-v="items" class="on"><svg class="ic" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>商品</span></button>
     <button data-v="pf"><svg class="ic" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>実績</span></button>
@@ -768,7 +768,7 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
         <li>最初から書いてある文字を全部消して、コピーしたプログラムを貼り、フロッピーの絵（保存）を押す。</li>
         <li>上の「実行する関数」で <b>setup</b> を選んで「実行」を押す。</li>
         <li>「承認が必要です」と出たら、自分のGoogleアカウントを選び、「詳細」→「（安全ではないページ）に移動」→「許可」を押す。自分で貼ったプログラムなので、この表示が出ます。</li>
-        <li>これで完了。5分おきに台帳を見て、新しい行だけWatch Stockに入れます。</li>
+        <li>これで完了。5分おきに台帳を見て、新しい行だけTick Takに入れます。</li>
         <li>「The OAuth client is not fully created yet」と出たら、作ったばかりで準備中です。10分ほどおいて、もう一度 setup を実行してください。Googleの保存容量がいっぱいのアカウントでは作れないことがあります。</li>
       </ol>
       <p class="sub">このプログラムには連携用の合言葉が入っています。ほかの人に渡さないでください。</p>
@@ -1558,7 +1558,7 @@ async function checkEbay(){ const kno=+ifm.kno.value; if(!kno) return; vout.inne
   const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   if(r.error){ vout.innerHTML=`<b class=neg>読めません：</b>${esc(r.error)}`; return }
   const st={Active:'出品中',Completed:'終了（売れた／期限）',Ended:'終了'}[r.status]||r.status, vd=VID?.ebay_id, on=r.videos.length>0;
-  const vtxt=on?`<b style="color:#15803d">付いています</b>${vd&&!r.videos.includes(vd)?'（ただしWatch Stockの動画とは別のもの）':''}`:VID?.url||vd?'<b class=neg>まだ付いていません</b>（動画の「eBayに送る」→「動画をeBayの出品に付ける」）':'なし';
+  const vtxt=on?`<b style="color:#15803d">付いています</b>${vd&&!r.videos.includes(vd)?'（ただしTick Takの動画とは別のもの）':''}`:VID?.url||vd?'<b class=neg>まだ付いていません</b>（動画の「eBayに送る」→「動画をeBayの出品に付ける」）':'なし';
   vout.innerHTML=`<div style="border:1px solid #e5e5e5;border-radius:8px;padding:10px">
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>eBayの出品（${esc(r.item_id)}）</b><a class="btn s" style="text-decoration:none" href="${esc(r.url||'https://www.ebay.com/itm/'+r.item_id)}" target="_blank" rel="noopener">eBayで開く</a></div>
     <div style="margin:6px 0">${esc(r.title)}</div>
@@ -2277,12 +2277,12 @@ async function importEtsy(rows, ix){
   const kn=[...new Set(orders.map(o=>o.kno))], have=new Set(), ebay=new Set();
   for(let i=0;i<kn.length;i+=500){ const {data}=await sb.from('items').select('kno').in('kno',kn.slice(i,i+500)); (data||[]).forEach(x=>have.add(x.kno));
     const {data:od}=await sb.from('orders').select('kno,platform').in('kno',kn.slice(i,i+500)); (od||[]).forEach(x=>{ if(x.platform==='eBay') ebay.add(x.kno) }); }
-  // 友達用：Watch Stockに無い品番は、Etsyの商品名で商品を作ってから入れる（仕入値は空。あとで本人が入れる）
+  // 友達用：Tick Takに無い品番は、Etsyの商品名で商品を作ってから入れる（仕入値は空。あとで本人が入れる）
   let made=0; if(ETSY_AUTO_ITEM){ const mk=new Map(); orders.forEach(o=>{ if(!have.has(o.kno)&&!mk.has(o.kno)) mk.set(o.kno,{kno:o.kno,status:'listed',condition:'Near MINT',title:o._name||null,memo:'Etsyの注文CSVから作成（仕入値・仕入日は未入力）'}) });
     const add=[...mk.values()]; for(let i=0;i<add.length;i+=500){ const {error}=await sb.from('items').insert(add.slice(i,i+500)); if(error) return {ok:false,msg:'商品の作成失敗：'+error.message} }
     add.forEach(x=>have.add(x.kno)); made=add.length; }
   orders.forEach(o=>delete o._name);
-  const ok=orders.filter(o=>{ if(!have.has(o.kno)){ unknown.push(`${o.ordered_on} 品番${o.kno}（Watch Stockに無い）`); return false }
+  const ok=orders.filter(o=>{ if(!have.has(o.kno)){ unknown.push(`${o.ordered_on} 品番${o.kno}（Tick Takに無い）`); return false }
     if(ebay.has(o.kno)){ unknown.push(`${o.ordered_on} 品番${o.kno}（eBayで売れた記録あり）`); return false } return true });
   const ok_kn=[...new Set(ok.map(o=>o.kno))];
   for(let i=0;i<ok_kn.length;i+=500){ const {error}=await sb.from('orders').delete().in('kno',ok_kn.slice(i,i+500)).neq('platform','eBay'); if(error) return {ok:false,msg:'失敗：'+error.message} }
@@ -2293,7 +2293,7 @@ async function importEtsy(rows, ix){
     const {error}=await sb.from('items').update({status:'sold',location_status:null,sold_on:ds[i]}).in('kno',byDay[ds[i]]); if(error) return {ok:false,msg:'失敗：'+error.message} }
   const days=ok.map(o=>o.ordered_on).sort();
   if(nosku.length) await etsyMatch(nosku);
-  return {ok:true,msg:(made?`Watch Stockに無かった${made}本は商品を作りました（仕入値・仕入日を入れてください）。`:'')+(nosku.length?`SKUなし${nosku.length}件は下で確認してください。`:'')+`Etsy ${ok.length}件（${days[0]||''}〜${days[days.length-1]||''}、為替${fx}円で計算）`+(other?`・ドル以外${other}件は円が空`:'')
+  return {ok:true,msg:(made?`Tick Takに無かった${made}本は商品を作りました（仕入値・仕入日を入れてください）。`:'')+(nosku.length?`SKUなし${nosku.length}件は下で確認してください。`:'')+`Etsy ${ok.length}件（${days[0]||''}〜${days[days.length-1]||''}、為替${fx}円で計算）`+(other?`・ドル以外${other}件は円が空`:'')
     +(unknown.length?`。入らなかった${unknown.length}件：${unknown.slice(0,8).join('、')}${unknown.length>8?' ほか':''}`:'')};
 }
 
@@ -2484,7 +2484,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020181824';
+const BUILD='20261020194705';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
@@ -2631,7 +2631,7 @@ async function addBuy(){ const nm=by_name.value.trim(), d=by_date.value, a=+by_a
 async function makeMailScript(){ mlmsg.textContent=' 作っています…'; const {data:tok,error}=await sb.rpc('ledger_token');
   if(error||!tok){ mlmsg.textContent=' 作れません：'+(error?.message||'合言葉を取り出せません'); return }
   const start=mlstart.value||new Date().toISOString().slice(0,10);
-  mlcode.value=`// Watch Stock 連携：ヤフオクの「ご購入の確認」メールを読んで、仕入れに入れる（5分おき）。${start} より前の購入は入れない
+  mlcode.value=`// Tick Tak 連携：ヤフオクの「ご購入の確認」メールを読んで、仕入れに入れる（5分おき）。${start} より前の購入は入れない
 var WS_URL = '${SUPABASE_URL}/rest/v1/rpc/ledger_push';
 var WS_KEY = '${SUPABASE_ANON_KEY}';
 var WS_TOKEN = '${tok}';
@@ -2673,7 +2673,7 @@ function setup() {
 async function makeLedgerScript(){ lsmsg.textContent=' 作っています…'; const {data:tok,error}=await sb.rpc('ledger_token');
   if(error||!tok){ lsmsg.textContent=' 作れません：'+(error?.message||'合言葉を取り出せません'); return }
   const start=lgstart.value||new Date().toISOString().slice(0,10);
-  lscode.value=`// Watch Stock 連携：仕入れ台帳の新しい行を Watch Stock の「保管」に入れる（5分おき）
+  lscode.value=`// Tick Tak 連携：仕入れ台帳の新しい行を Tick Tak の「保管」に入れる（5分おき）
 // 見るのは「2026 10月」のように年が付いたタブだけ。${start} より前の仕入れは入れない
 var WS_URL = '${SUPABASE_URL}/rest/v1/rpc/ledger_push';
 var WS_KEY = '${SUPABASE_ANON_KEY}';
