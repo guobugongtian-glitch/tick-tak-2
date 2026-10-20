@@ -2027,7 +2027,8 @@ async function importCsv(){
     const rows=/\.xlsx$/i.test(f.name)?await readXlsx(f):parseCsv((await f.text()).replace(/^\uFEFF/,'')); const h=rows.shift()||[]; const ix=Object.fromEntries(h.map((k,i)=>[String(k).trim(),i]));
     if('追跡番号' in ix&&'目的国' in ix&&'支払総額（円）' in ix){ jobs.push({kind:6,rows,ix,h,name:f.name}); continue }
     // Etsyの「出品一覧」CSV（設定→オプション→データをダウンロード→出品一覧）。在庫として入れる（2026-10-20 友達用）
-    { const up=Object.fromEntries(Object.entries(ix).map(([k,i])=>[k.replace(/^\uFEFF|"/g,'').trim().toUpperCase(),i]));
+    { const JA={'タイトル':'TITLE','価格':'PRICE','通貨コード':'CURRENCY_CODE','個数':'QUANTITY','説明':'DESCRIPTION','ＳＫＵ':'SKU'};
+      const up=Object.fromEntries(Object.entries(ix).map(([k,i])=>{ k=k.replace(/^\uFEFF|"/g,'').trim(); const m=k.match(/^画像\s*(\d+)$/); return [m?'IMAGE'+m[1]:(JA[k]||k.toUpperCase()),i] }));
       if('TITLE' in up&&'PRICE' in up&&Object.keys(up).some(k=>k.startsWith('IMAGE'))){ jobs.push({kind:7,rows,ix:up,h,name:f.name}); continue } }
     if('Sale Date' in ix&&'Number of Items' in ix){ iomsg.textContent=`${f.name}：これは注文ごとのCSVです。Etsyは「Order Items」（商品ごと）のほうを選んでください`; return }
     const kind='販売日' in ix?2:'品番' in ix?3:'kno' in ix?1:(h[0]||'').trim().startsWith('社名')?4:('Sale Date' in ix&&'Item Name' in ix)?5:0;
@@ -2433,7 +2434,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020165637';
+const BUILD='20261020165845';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
