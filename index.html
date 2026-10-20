@@ -969,7 +969,7 @@ function thumb(u){ if(!u) return u;
 //   アメリカ・イスラエル 5,700円／それ以外 3,500円。eBayで売れたアメリカ向けは関税込みなので 5,700円＋商品価格の15%
 //   Etsyは基本アメリカ向けで 5,500円（eBayStockの「その他」もEtsyとして扱う。国が入っていて米国以外なら上の決まり）
 //   eBayStockの「実送料」は1件120〜240円台の値が多く、円ではなさそう（推定）なので、1,000円未満は「入っていない」と見て決まりの額を使う
-const SHIP_RULE={US:5700,IL:5700,other:3500}, EBAY_US_DUTY=0.15, ETSY_SHIP=5500;
+const SHIP_RULE={US:5700,IL:5700,other:3500}, EBAY_US_DUTY=0.15, ETSY_SHIP=6000;
 const isEtsy=o=>o.platform==='Etsy'||o.platform==='その他';
 const isEbay=o=>o.platform==='eBay';
 const shipRule=o=>{ const c=(o.country||'').toUpperCase(), base=SHIP_RULE[c]??SHIP_RULE.other;
@@ -2434,7 +2434,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020165845';
+const BUILD='20261020172029';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
