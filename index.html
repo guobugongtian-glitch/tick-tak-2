@@ -1783,24 +1783,26 @@ async function taxDoc(kind,fmt0){ const fmt=txfmt.value||fmt0, y=txy.value, from
   }
   if(kind==='kessan'){
     title=`確定申告用の年間集計　${y}年`; landscape=false;
-    const os=await allRows(()=>sb.from('orders').select('ordered_on,platform,country,item_price_jpy,ship_charged_jpy,ship_actual_jpy,sales_fee_jpy,payoneer_fee_jpy,duty_jpy,promo_fee_jpy,listing_fee_jpy,other_fee_jpy,return_cost_jpy').gte('ordered_on',from).lte('ordered_on',to).order('id'));
+    const os=await allRows(()=>sb.from('orders').select('ordered_on,platform,country,item_price_jpy,ship_charged_jpy,ship_actual_jpy,sales_fee_jpy,payoneer_fee_jpy,duty_jpy,promo_fee_jpy,listing_fee_jpy,other_fee_jpy,return_cost_jpy,items(cost_jpy)').gte('ordered_on',from).lte('ordered_on',to).order('id'));
     const it=await allRows(()=>sb.from('items').select('purchased_on,cost_jpy,sold_on,status').order('kno'));
     const {data:mc}=await sb.from('monthly_costs').select('*').gte('ym',`${y}01`).lte('ym',`${y}12`);
-    const inv=d=>it.filter(i=>i.purchased_on&&i.purchased_on<=d&&!(i.sold_on&&i.sold_on<=d)).reduce((a,i)=>a+(i.cost_jpy||0),0);
-    const prev=`${y-1}-12-31`, open=inv(prev), close=inv(to);
-    const buy=it.filter(i=>i.purchased_on>=from&&i.purchased_on<=to).reduce((a,i)=>a+(i.cost_jpy||0),0);
+    // 売上原価は「その年に売れた商品の仕入値の合計」（個別に分かるので）。仕入日が無い商品が多く、期首在庫＋仕入−期末在庫では出せないため
     const sum=f=>os.reduce((a,o)=>a+(f(o)||0),0);
+    const cogs=sum(o=>o.items?.cost_jpy), close=it.filter(i=>(!i.purchased_on||i.purchased_on<=to)&&!(i.status==='sold'&&(!i.sold_on||i.sold_on<=to))).reduce((a,i)=>a+(i.cost_jpy||0),0);
+    const buy=it.filter(i=>i.purchased_on>=from&&i.purchased_on<=to).reduce((a,i)=>a+(i.cost_jpy||0),0), noDate=it.filter(i=>!i.purchased_on).length;
     const sales=sum(o=>(o.item_price_jpy||0)+(o.ship_charged_jpy||0)), ship=sum(o=>shipOf(o)), est=os.filter(o=>!hasShip(o)).length;
-    const mcs=k=>-(mc||[]).filter(c=>k.includes(c.kind)).reduce((a,c)=>a+c.amount_jpy,0);
+    const mcs=k=>-(mc||[]).filter(c=>k.includes(c.kind)).reduce((a,c)=>a+c.amount_jpy,0)||0;
     const fee=sum(o=>(o.sales_fee_jpy||0)+(o.payoneer_fee_jpy||0)+(o.listing_fee_jpy||0)+(o.other_fee_jpy||0))+mcs(['出品関連手数料','その他eBay手数料','Etsy月額プラン','Etsy出品・更新料','Etsy VAT・その他']);
     const ad=sum(o=>o.promo_fee_jpy)+mcs(['Etsy広告']);
     const L=[['売上（収入）金額',sales],['　うちeBay',sum(o=>o.platform==='eBay'?(o.item_price_jpy||0)+(o.ship_charged_jpy||0):0)],['　うちEtsyほか',sum(o=>o.platform!=='eBay'?(o.item_price_jpy||0)+(o.ship_charged_jpy||0):0)],
-      ['期首商品棚卸高（'+prev.replace(/-/g,'/')+'）',open],['仕入金額',buy],['期末商品棚卸高（'+to.replace(/-/g,'/')+'）',close],['差引原価',open+buy-close],['差引金額（売上総利益）',sales-(open+buy-close)],
+      ['売上原価（その年に売れた商品の仕入値の合計）',cogs],['差引金額（売上総利益）',sales-cogs],
+      ['（参考）期末の在庫（'+to.replace(/-/g,'/')+'時点で売れていない商品の仕入値）',close],['（参考）仕入金額（仕入日が入っている分だけ）',buy],
       ['経費：荷造運賃（実送料）',ship],['経費：関税（販売のとき払った分）',sum(o=>o.duty_jpy)],['経費：支払手数料（販売・決済・出品）',fee],['経費：広告宣伝費',ad],
       ['経費：返品・返金',sum(o=>o.return_cost_jpy)-(mc||[]).filter(c=>c.kind==='紛争・返金調整').reduce((a,c)=>a+c.amount_jpy,0)],
       ['経費：ワンロック利用料（外注・保管）',mcs(['ワンロック利用料'])],['経費：eBayStock利用料',mcs(['eBayStock利用料'])],['経費：通信・ソフト',mcs(['通信・ソフト'])],['経費：外注費',mcs(['外注費'])],['経費：地代家賃',mcs(['家賃'])],['経費：その他',mcs(['その他経費'])]];
     const ex=L.filter(x=>x[0].startsWith('経費')).reduce((a,x)=>a+x[1],0);
-    L.push(['経費の合計',ex],['所得の目安（差引金額−経費）',sales-(open+buy-close)-ex]);
+    L.push(['経費の合計',ex],['所得の目安（差引金額−経費）',sales-cogs-ex]);
+    if(noDate) notes.push(`仕入日が入っていない商品が${noDate}件あります（eBayStockから取り込んだ分）。売上原価は「売れた商品の仕入値」で出しているので影響しませんが、仕入金額と期首の在庫は出せません。決算書の期首・期末の棚卸と仕入金額は、Googleの仕入れ台帳と合わせて税理士さんに確認してください。`);
     const refund=(mc||[]).filter(c=>c.kind==='消費税還付').reduce((a,c)=>a+c.amount_jpy,0); if(refund) L.push(['（別）消費税の還付',refund]);
     head=['項目','金額（円）']; body=L;
     notes.push('カード明細・銀行明細の費用は入れていません。ここに無い経費（交通費・梱包材・備品など）は別に足してください。','固定費は「収支」の手入力の月の分だけです（「毎月の定額」は入れていません）。');
@@ -2666,7 +2668,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020203521';
+const BUILD='20261020203707';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
