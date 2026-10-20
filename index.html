@@ -542,7 +542,7 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
 }
 /* 友達用：Etsyだけ。eBayの画面を隠す */
 #v-items .stl,#v-items .st,th.st,#soldcard,#rvcard,#ebmsg,#ebpol,.row:has(> button[onclick="ebayConnect()"]),
-#phbtn,#verbtn,#chkbtn,#revbtn,#endbtn,#qbtn,#pubbtn,
+#phbtn,#verbtn,#chkbtn,#revbtn,#endbtn,#qbtn,#pubbtn,button[onclick="lookupSpecs()"],button[onclick="otherTitles()"],
 label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_policy"]),label:has(> input[name="store_cat1"]),label:has(> select[name="ebay_condition"]){display:none!important}
 </style>
 </head>
@@ -1293,7 +1293,7 @@ async function openItem(kno,quick){ dlg.classList.toggle('quick',!!quick);
   if(!ifm.condition.value||!CONDS.includes(ifm.condition.value)) ifm.condition.value='Near MINT';  // 状態が空の商品は Near MINT（空のまま開くと先頭の Unused で保存されていた）
   tlen.textContent=ifm.title.value.length; calcI(); dlg.showModal(); showPast();
   // 友達用：スペックが空の商品を開いたら、ほかのセラーの出品からスペックとタイトル案を自動で出す
-  if(AUTO_LOOKUP&&kno&&![...document.querySelectorAll('[data-spec]')].some(i=>i.value)&&specQuery().length>=3) setTimeout(()=>{ lookupSpecs(); otherTitles() },300); spmsg.textContent=''; loadSpecVals(); seoCheck();
+  if(AUTO_LOOKUP&&kno&&![...document.querySelectorAll('[data-spec]')].some(i=>i.value)&&specQuery().length>=3) 0; spmsg.textContent=''; loadSpecVals(); seoCheck();
 }
 function calcI(){ const s=getS(), pr=+ifm.price_usd.value, sh=+ifm.shipping_usd.value||0, cost=+ifm.cost_jpy.value, el=$('iprofit');
   if(!pr){ el.textContent='—'; return } const gross=(pr+sh)*s.fx, fee=gross*(s.fee+s.pay)/100, p=cost?gross-fee-cost-s.ship:null;
@@ -2482,7 +2482,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020180115';
+const BUILD='20261020181147';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
