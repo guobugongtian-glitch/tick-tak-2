@@ -737,7 +737,7 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
 <section id="v-orders" class="hide">
   <div class="card row">期間：<input type="month" id="om"><button class="btn" onclick="loadOrders()">表示</button>
     <label><input type="checkbox" id="onp"> 未処理のみ</label></div>
-  <div class="tbl"><table><thead><tr><th>注文日</th><th>注文番号</th><th>品番</th><th>販路</th><th class="n">商品価格</th><th class="n">販売送料</th><th class="n">実送料</th><th class="n">関税</th><th>国</th><th>状態</th><th class="n">利益</th></tr></thead><tbody id="obody"></tbody></table></div>
+  <div class="tbl"><table><thead><tr><th>注文日</th><th>注文番号</th><th>品番</th><th>販路</th><th class="n">商品価格</th><th class="n">販売送料</th><th class="n">実送料</th><th class="n">関税</th><th>国</th><th>状態</th><th class="n">仕入値</th><th class="n">利益</th></tr></thead><tbody id="obody"></tbody></table></div>
 </section>
 
 <!-- 取込/設定 -->
@@ -2012,12 +2012,15 @@ async function loadPf(){
 }
 
 // 販売情報
+// 販売情報から仕入値を直す（2026-10-20）。保存したら一覧を読み直して利益も変える
+async function saveCost(kno,el){ const v=el.value.trim(); const {error}=await sb.from('items').update({cost_jpy:v===''?null:Math.round(+v)}).eq('kno',kno);
+  if(error){ el.style.outline='2px solid #e5342a'; el.title='保存できません：'+error.message; return } loadOrders(); }
 async function loadOrders(){
   const [y,m]=om.value.split('-'); const last=new Date(+y,+m,0).getDate();
   let q=sb.from('orders').select('*,items(cost_jpy)').gte('ordered_on',`${y}-${m}-01`).lte('ordered_on',`${y}-${m}-${last}`).order('ordered_on');
   if(onp.checked) q=q.eq('processed',false);
   const {data}=await q;
-  obody.innerHTML=(data||[]).map(o=>`<tr><td>${o.ordered_on}</td><td>${o.order_no||''}</td><td>${o.kno||''}</td><td>${o.platform}</td><td class=n>${yen(o.item_price_jpy)}</td><td class=n>${yen(o.ship_charged_jpy)}</td><td class=n>${hasShip(o)?yen(o.ship_actual_jpy):`<span class=sub title="実送料が入っていない（または1,000円未満で円ではなさそうな値）ので、決まりの額で計算しています">${yen(shipRule(o))}（決まり）</span>`}</td><td class=n>${yen(o.duty_jpy)}</td><td>${o.country||''}</td><td>${o.processed?'処理済':'<span class=neg>未処理</span>'}</td>${profitCell({status:'sold',cost_jpy:o.items?.cost_jpy,orders:[o]},null)}</tr>`).join('')||'<tr><td colspan=11 class=sub>データがありません</td></tr>';
+  obody.innerHTML=(data||[]).map(o=>`<tr><td>${o.ordered_on}</td><td>${o.order_no||''}</td><td>${o.kno||''}</td><td>${o.platform}</td><td class=n>${yen(o.item_price_jpy)}</td><td class=n>${yen(o.ship_charged_jpy)}</td><td class=n>${hasShip(o)?yen(o.ship_actual_jpy):`<span class=sub title="実送料が入っていない（または1,000円未満で円ではなさそうな値）ので、決まりの額で計算しています">${yen(shipRule(o))}（決まり）</span>`}</td><td class=n>${yen(o.duty_jpy)}</td><td>${o.country||''}</td><td>${o.processed?'処理済':'<span class=neg>未処理</span>'}</td><td class=n>${o.kno?`<input type=number inputmode=numeric style="width:96px;text-align:right" value="${o.items?.cost_jpy??''}" placeholder="未入力" title="仕入値（円）。変えるとすぐ保存" onchange="saveCost(${o.kno},this)">`:''}</td>${profitCell({status:'sold',cost_jpy:o.items?.cost_jpy,orders:[o]},null)}</tr>`).join('')||'<tr><td colspan=12 class=sub>データがありません</td></tr>';
 }
 
 // CSV取込（eBayStock export/items_full.csv）
@@ -2445,7 +2448,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020174411';
+const BUILD='20261020174544';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
