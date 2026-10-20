@@ -573,7 +573,7 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
     <button data-v="pf"><svg class="ic" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>実績</span></button>
     <button class="sell" onclick="openItem(null,true)"><svg class="ic" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg><span>出品</span></button>
     <button data-v="cash"><svg class="ic" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l6 8 6-8M12 12v8M7 13h10M7 17h10"/></svg><span>収支</span></button>
-    <button data-v="buy" class="mh"><span>仕入れ</span></button>
+    <button data-v="buy" class="mh"><span>仕入れ台帳</span></button>
     <button data-v="research" class="mh"><span>リサーチ</span></button>
     <button data-v="card" class="mh"><span>カード明細</span></button>
     <button data-v="bank" class="mh"><span>銀行明細</span></button>
@@ -622,7 +622,7 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
 
 <section id="v-more" class="hide">
   <div class="card menu">
-    <button onclick="go('buy')">仕入れ（台帳）</button>
+    <button onclick="go('buy')">仕入れ台帳</button>
     <button onclick="go('research')">リサーチ・利益計算</button>
     <button onclick="go('orders')">販売情報</button>
     <button onclick="go('card')">カード明細</button>
@@ -634,6 +634,8 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
 <!-- 仕入れ（台帳）2026-10-20：Googleの仕入れ台帳の代わり。1行＝「保管」の商品 -->
 <section id="v-buy" class="hide">
   <div class="card row">月：<input id="bym" type="month" onchange="loadBuy()"> <button class="btn s" onclick="bym.value=new Date().toISOString().slice(0,7);loadBuy()">今月</button><span id="bymsg" class="sub"></span></div>
+  <div class="card row"><b>台帳を出す</b><select id="lgrange"><option value="month">この月</option><option value="year">この年（1〜12月）</option></select>
+    <button class="btn" onclick="ledgerOut('print')">印刷する</button><button class="btn s" onclick="ledgerOut('csv')">Excel用CSV</button><span class="sub" id="lgmsg">税理士さん・確定申告用。品番・購入日・品名・仕入先・相手方・住所・金額・支払方法・支払日</span></div>
   <div class="card"><div class="hrow" id="bykpi" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px"></div>
     <div class="sub" style="margin-top:6px">仕入は月50件・130万円まで／在庫は450〜500万円（180〜190点）／600万円を超えたら仕入停止</div></div>
   <details class="card"><summary><b>1行足す</b>（手で入れる仕入れ）</summary>
@@ -2578,7 +2580,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020202836';
+const BUILD='20261020203204';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
@@ -2699,6 +2701,43 @@ async function matchBuyCards(){
     const {error}=await sb.from('items').update({memo}).eq('kno',r.kno); if(!error) n++; }
   return n; }
 const memoLine=(m,k)=>((m||'').split('\n').find(x=>x.startsWith(k+'：'))||'').slice(k.length+1);
+// 仕入れ台帳を印刷・CSVで出す（2026-10-20）。月または年。年は月ごとの小計つき
+async function ledgerOut(fmt){ if(!bym.value) bym.value=new Date(Date.now()+9*3600e3).toISOString().slice(0,7);
+  const [y,m]=bym.value.split('-'), yr=lgrange.value==='year';
+  const from=yr?`${y}-01-01`:`${y}-${m}-01`, to=yr?`${y}-12-31`:`${y}-${m}-${new Date(+y,+m,0).getDate()}`;
+  lgmsg.textContent=' 集めています…';
+  const rows=await allRows(()=>sb.from('items').select('kno,status,title,memo,purchased_on,cost_jpy,supplier,supplier_url').gte('purchased_on',from).lte('purchased_on',to).order('purchased_on').order('kno'));
+  if(!rows.length){ lgmsg.textContent=' この期間の仕入れはありません'; return }
+  const L=rows.map(r=>{ const c=cardOf(r); return { kno:r.kno, day:r.purchased_on.replace(/-/g,'/'), name:r.title||memoLine(r.memo,'台帳')||'', shop:r.supplier||memoLine(r.memo,'お店')||'',
+    seller:memoLine(r.memo,'出品者'), addr:memoLine(r.memo,'住所'), amt:r.cost_jpy||0, card:c==='未確定'?'未確定':c||'不明', pay:(payDay(c,r.purchased_on)||'').replace(/-/g,'/'),
+    st:{stock:'在庫',listed:'在庫（出品中）',sold:'販売済'}[r.status]||'', url:r.supplier_url||'' } });
+  const total=L.reduce((a,x)=>a+x.amt,0), title=`仕入れ台帳　${yr?y+'年':`${y}年${+m}月`}`;
+  if(fmt==='csv'){
+    const H=['品番','購入日','品名','仕入先','相手方（出品者）','相手方の住所','仕入金額（円）','支払方法','支払日','状態','URL'];
+    const q=v=>{ v=String(v??''); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v };
+    const body=[H,...L.map(x=>[x.kno,x.day,x.name,x.shop,x.seller,x.addr,x.amt,x.card,x.pay,x.st,x.url]),[],['合計','','','','','',total]];
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\uFEFF'+body.map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv'}));
+    a.download=`仕入れ台帳_${yr?y:y+m}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+    lgmsg.textContent=` ${rows.length}件・合計${yen(total)}円のCSVを作りました`; return }
+  const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const tr=x=>`<tr><td>${x.kno}</td><td>${x.day}</td><td>${esc(x.name)}</td><td>${esc(x.shop)}</td><td>${esc(x.seller)}</td><td>${esc(x.addr)}</td><td class=n>${yen(x.amt)}</td><td>${esc(x.card)}</td><td>${x.pay}</td><td>${x.st}</td></tr>`;
+  let tb='';
+  if(yr){ const g={}; L.forEach(x=>(g[x.day.slice(0,7)]??=[]).push(x));
+    for(const [k,a] of Object.entries(g)) tb+=a.map(tr).join('')+`<tr class=sub><td colspan=6>${+k.slice(5)}月の小計（${a.length}件）</td><td class=n>${yen(a.reduce((s,x)=>s+x.amt,0))}</td><td colspan=3></td></tr>`;
+  } else tb=L.map(tr).join('');
+  const w=window.open('','_blank'); if(!w){ lgmsg.textContent=' ポップアップが止められました。許可してからもう一度押してください'; return }
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>${title}</title><style>
+@page{size:A4 landscape;margin:10mm}body{font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;font-size:9pt;color:#111;margin:0}
+h1{font-size:14pt;margin:0 0 2mm}.meta{display:flex;justify-content:space-between;margin-bottom:3mm}
+table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:1.2mm 1.6mm;vertical-align:top}th{background:#eee;white-space:nowrap}
+td.n,th.n{text-align:right;white-space:nowrap}td:nth-child(3){max-width:70mm}tr.sub td{background:#f6f6f6;font-weight:700}tfoot td{font-weight:800;background:#e8e8e8}
+thead{display:table-header-group}tr{page-break-inside:avoid}
+.bar{position:sticky;top:0;background:#fff;padding:10px;text-align:center;font-size:14px;box-shadow:0 1px 6px #0002;margin-bottom:10px}@media print{.bar{display:none}}
+</style><div class="bar">${rows.length}件。用紙はA4横で印刷されます。 <button onclick="print()">印刷する</button></div>
+<h1>${title}</h1><div class="meta"><span>期間：${from.replace(/-/g,'/')} 〜 ${to.replace(/-/g,'/')}</span><span>作成日：${new Date().toLocaleDateString('ja-JP')}</span></div>
+<table><thead><tr><th>品番</th><th>購入日</th><th>品名</th><th>仕入先</th><th>相手方（出品者）</th><th>相手方の住所</th><th class=n>仕入金額（円）</th><th>支払方法</th><th>支払日</th><th>状態</th></tr></thead>
+<tbody>${tb}</tbody><tfoot><tr><td colspan=6>合計（${rows.length}件）</td><td class=n>${yen(total)}</td><td colspan=3></td></tr></tfoot></table>`);
+  w.document.close(); lgmsg.textContent=` ${rows.length}件・合計${yen(total)}円`; }
 async function loadBuy(){ if(!bym.value) bym.value=new Date(Date.now()+9*3600e3).toISOString().slice(0,7);
   const [y,m]=bym.value.split('-'), last=new Date(+y,+m,0).getDate();
   const rows=await allRows(()=>sb.from('items').select('kno,status,title,memo,purchased_on,cost_jpy,supplier,supplier_url').gte('purchased_on',`${y}-${m}-01`).lte('purchased_on',`${y}-${m}-${last}`).order('purchased_on').order('kno'));
