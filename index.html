@@ -2086,11 +2086,13 @@ async function saveCost(kno,el){ const v=el.value.trim(); const {error}=await sb
   if(error){ el.style.outline='2px solid #e5342a'; el.title='保存できません：'+error.message; return } loadOrders(); }
 // eLogiの取込CSV（Etsyの注文）2026-10-20。決まり：注文種類=その他／HS 910211／申告単価＝商品代のみ（送料・税は除く、ショップのクーポンは割引後）
 //   電話＝数字だけ（アメリカの先頭の1は外す）、無ければ発送元 08026725538／アメリカは原産国・EORIは空欄、州は2文字／EUはIOSS（EtsyのIM3720000224）と原産国JP
+const ELTEL={}; // メッセージで来た電話番号（この画面を開いているあいだ覚えておく）
 const SHIP_TEL=''; // 発送元の電話（電話が無い注文に入れる）
 const EU=['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];
 async function elogiCsv(){
   const ids=[...document.querySelectorAll('.elck:checked')].map(x=>x.value).filter((v,i,a)=>a.indexOf(v)===i);
   if(!ids.length){ elmsg.textContent='Etsyの注文に✓を入れてください'; return }
+  document.querySelectorAll('.eltel').forEach(x=>{ ELTEL[x.dataset.r]=x.value.trim() });
   elmsg.textContent='Etsyから届け先を読んでいます…'; const r=await etsyCall('elogi_receipts',{receipt_ids:ids});
   if(r.error){ elmsg.textContent='読めませんでした：'+r.error; return }
   const skus=r.receipts.flatMap(o=>o.items.map(t=>Number(t.sku))).filter(Boolean);
@@ -2098,10 +2100,12 @@ async function elogiCsv(){
   const photo=Object.fromEntries((its||[]).map(i=>[String(i.kno),(i.photos||[])[0]||'']));
   const cn=new Intl.DisplayNames(['en'],{type:'region'});
   const H=['注文種類','注文番号','注文日','SKU','商品画像URL','商品タイトル','数量','(必須)通貨(USD,EUR,GBP,AUD)','(必須)申告単価/個','購入者ID','受取人氏名','受取人会社名','(必須)電話番号','メールアドレス','国名','州コード/州名','市','郵便番号','(必須)住所１','住所２','住所３','HS/HTSコード','原産国','受取人 納税者ID（SIN/PCCC/RFC番号等）','プラットフォーム指定の事前徴収ID（IOSS/VAT番号等）','EORI番号'];
-  const rows=[], notes=[];
+  const rows=[], notes=[], noTel=[];
   for(const o of r.receipts){
     const c=o.country_iso, us=c==='US';
-    let tel=String(o.phone||'').replace(/\D/g,''); if(us&&tel.length===11&&tel.startsWith('1')) tel=tel.slice(1);
+    const typed=ELTEL[o.receipt_id]||'';
+    let tel=String(typed||o.phone||'').replace(/\D/g,''); if(us&&tel.length===11&&tel.startsWith('1')) tel=tel.slice(1);
+    if(!tel) noTel.push(o.receipt_id);
     if(!tel&&SHIP_TEL){ tel=SHIP_TEL; notes.push(`${o.receipt_id}：電話番号がEtsyに無いので、発送元の番号（${SHIP_TEL}）を入れました`) }
     const tot=o.items.reduce((a,t)=>a+t.price*t.qty,0)||1;
     for(const t of o.items){
@@ -2123,6 +2127,8 @@ async function elogiCsv(){
   const name=`order_import_${r.receipts.map(o=>o.receipt_id).join('_')}.csv`;
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
   elmsg.textContent=`${name} を作りました（${rows.length}行）。`+(notes.length?'\n'+[...new Set(notes)].join('\n'):'');
+  // 電話がEtsyに無かった注文：メッセージで来た番号を入れて作り直せるようにする（入れた番号はこの画面を開いているあいだ覚えておく）
+  if(noTel.length) elmsg.insertAdjacentHTML('beforeend','<div style="margin-top:6px">'+noTel.map(id=>`<div class=row>${id} の電話（メッセージで来た番号） <input class=eltel data-r="${id}" inputmode=tel style="width:160px" value="${ELTEL[id]||''}"></div>`).join('')+'<button class="btn" onclick="elogiCsv()">番号を入れて作り直す</button></div>');
 }
 async function loadOrders(){
   const [y,m]=om.value.split('-'); const last=new Date(+y,+m,0).getDate();
@@ -2571,7 +2577,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020202235';
+const BUILD='20261020202800';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
