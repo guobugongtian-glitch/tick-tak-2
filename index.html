@@ -663,6 +663,13 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
 <!-- リサーチ -->
 <section id="v-research" class="hide">
   <div class="card">
+    <h3 style="margin-top:0">他の店で売れた（Etsy・日本の時計の店）</h3>
+    <p class="sub" style="margin-top:0">毎週月曜の朝に、Etsyの腕時計×日本の店の出品を控え、前の週から消えた出品を確かめます。Etsyで「売り切れ」になっていたら売れた、と数えます（推定。期限切れ・取り下げは数えない）。1週目は控えるだけで、売れた分は2週目から出ます。</p>
+    <div class="row"><select id="mkweek" onchange="drawMarket()"></select><select id="mkbrand" onchange="drawMarket()"><option value="">ブランド：すべて</option></select>
+      <button class="btn s" onclick="runMarket()">いま調べる</button><span class="sub" id="mkmsg"></span></div>
+    <div id="mkout"></div>
+  </div>
+  <div class="card">
     <h3 style="margin-top:0">売れる時計の一覧（仕入れリスト）</h3>
     <p class="sub">自分の店で実際に速く売れて利益が出た型です。「買値の上限」より安く買えるものを探してください。ボタンでヤフオク・メルカリ・eBayの相場がすぐ開きます。</p>
     <div class="seg" id="rtabs"><button class="chip on" data-r="buy">今月狙う</button><button class="chip" data-r="rec">おすすめ</button><button class="chip" data-r="all">全部</button><button class="chip" data-r="ng">避けたい</button></div>
@@ -743,7 +750,8 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
 <section id="v-orders" class="hide">
   <div class="card row">期間：<input type="month" id="om"><button class="btn" onclick="loadOrders()">表示</button>
     <label><input type="checkbox" id="onp"> 未処理のみ</label></div>
-  <div class="tbl"><table><thead><tr><th>注文日</th><th>注文番号</th><th>品番</th><th>販路</th><th class="n">商品価格</th><th class="n">販売送料</th><th class="n">実送料</th><th class="n">関税</th><th>国</th><th>状態</th><th class="n">仕入値</th><th class="n">利益</th></tr></thead><tbody id="obody"></tbody></table></div>
+  <div class="card"><div class="row"><button class="btn" onclick="elogiCsv()">eLogi CSV（✓したEtsyの注文）</button><span class="sub">2件以上✓すると1ファイルにまとめます</span></div><p class="sub" id="elmsg" style="white-space:pre-wrap;margin:4px 0 0"></p></div>
+  <div class="tbl"><table><thead><tr><th></th><th>注文日</th><th>注文番号</th><th>品番</th><th>販路</th><th class="n">商品価格</th><th class="n">販売送料</th><th class="n">実送料</th><th class="n">関税</th><th>国</th><th>状態</th><th class="n">仕入値</th><th class="n">利益</th></tr></thead><tbody id="obody"></tbody></table></div>
 </section>
 
 <!-- 取込/設定 -->
@@ -1620,7 +1628,46 @@ function modelKey(t){ if(!t) return null; const T=String(t).toUpperCase().replac
   const cap=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
   if(nm&&(['HERMES','RADO','OMEGA','Cartier','HAMILTON','FENDI'].includes(b)||!m)) return {name:b+' '+cap(nm),brand:b};
   return {name:b+' '+(m?m[1]:'（型番不明）'),brand:b}; }
-async function loadResearch(){ rcards.innerHTML='<p class="sub">集計しています…</p>';
+// 他の店でEtsyで売れた時計（etsy関数 market_scan が毎週月曜に集める）2026-10-20
+let MK=[], MKOWN={};
+const MKBR=["Grand Seiko","King Seiko","Credor","Seiko","Citizen","Orient","Casio","Rolex","Tudor","Omega","Cartier","Hermes","Gucci","Longines","Rado","Tissot","Christian Dior","Dior","Chanel","Bulova","Hamilton","Tag Heuer","Heuer","Baume","Movado","Burberry","Coach","Fendi","Celine","Louis Vuitton","Bvlgari","Bulgari","Chopard","Piaget","Jaeger","IWC","Zenith","Universal Geneve","Eterna","Oris","Raymond Weil","Frederique Constant","Andre Mouche","Swatch","Ebel","Concord","Corum","Breitling","Tiffany","Salvatore Ferragamo","Givenchy","Yves Saint Laurent","Nina Ricci","Courreges","Agnes b","Alba","Wakmann","Enicar","Favre-Leuba","Doxa","Mido","Certina"];
+const mkBrand=t=>{ const s=String(t||'').toLowerCase().replace(/è|é/g,'e'); const b=MKBR.find(x=>s.includes(x.toLowerCase())); return b==='Christian Dior'?'Dior':b==='Bulgari'?'Bvlgari':b||null };
+async function loadMarket(){
+  const {data:runs,error}=await sb.from('etsy_market_run').select('week,phase,scanned,sold,finished_at').order('week',{ascending:false}).limit(12);
+  if(error){ mkout.innerHTML='<p class="sub">まだ準備ができていません（保存先に表 etsy_market がありません）。</p>'; return }
+  if(!runs?.length){ mkweek.innerHTML=''; mkout.innerHTML='<p class="sub">まだ1回も調べていません。次の月曜の朝に自動で始まります（「いま調べる」でも始められます）。</p>'; return }
+  const cur=mkweek.value; mkweek.innerHTML=runs.map(r=>`<option value="${r.week}">${r.week.slice(5).replace('-','/')}の週（売れた${r.sold||0}本${r.phase==='done'?'':'・調べている途中'}）</option>`).join('');
+  if(cur&&runs.some(r=>r.week===cur)) mkweek.value=cur;
+  const its=await allRows(()=>sb.from('items').select('kno,status,title,research(brand)').neq('status','sold').order('kno'));
+  MKOWN={}; its.forEach(r=>{ const b=mkBrand(r.research?.brand||r.title); if(b) MKOWN[b]=(MKOWN[b]||0)+1 });
+  await drawMarket(true);
+}
+async function drawMarket(reload){
+  const w=mkweek.value; if(!w) return;
+  if(reload!==false||!MK.length||MK[0]?._w!==w){ const {data}=await sb.from('etsy_market').select('listing_id,shop_name,title,brand,price_usd,url,image,listed_on,sold_on').eq('sold_on',w).order('price_usd',{ascending:false}).limit(1000); MK=(data||[]).map(x=>({...x,_w:w})) }
+  const run=[...mkweek.options].find(o=>o.value===w);
+  const g={}; MK.forEach(x=>{ const b=x.brand||'（その他）'; (g[b]??=[]).push(Number(x.price_usd)||0) });
+  const med=a=>{ a=[...a].sort((x,y)=>x-y); return a.length?a[Math.floor(a.length/2)]:0 };
+  const rank=Object.entries(g).sort((a,b)=>b[1].length-a[1].length);
+  const sel=mkbrand.value; mkbrand.innerHTML='<option value="">ブランド：すべて</option>'+rank.map(([b,a])=>`<option ${b===sel?'selected':''}>${b}</option>`).join('');
+  const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const days=x=>x.listed_on?Math.max(0,Math.round((new Date(x.sold_on)-new Date(x.listed_on))/864e5)):null;
+  const list=MK.filter(x=>!sel||(x.brand||'（その他）')===sel);
+  if(!MK.length){ mkout.innerHTML=`<p class="sub">${run?.text.includes('途中')?'この週はまだ調べている途中です。':'この週に売れた出品はありませんでした（1週目は控えるだけなので0本です）。'}</p>`; return }
+  mkout.innerHTML=`<div class="tbl" style="margin:8px 0"><table><tr><th>ブランド</th><th class="n">売れた</th><th class="n">値段の中央値</th><th class="n">自店の在庫</th></tr>`+
+    rank.slice(0,15).map(([b,a])=>`<tr><td><a class="k" onclick="mkbrand.value='${esc(b)}';drawMarket(false)">${esc(b)}</a></td><td class="n">${a.length}本</td><td class="n">$${Math.round(med(a))}</td><td class="n">${MKOWN[b]?MKOWN[b]+'本':'—'}</td></tr>`).join('')+`</table></div>`+
+    `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">`+list.slice(0,200).map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+      ${x.image?`<img src="${esc(x.image)}" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:#eee">`:'<div style="aspect-ratio:1;border-radius:10px;background:#eee"></div>'}
+      <div style="font-weight:700">$${Math.round(x.price_usd||0)}</div><div class="sub" style="line-height:1.4;max-height:2.8em;overflow:hidden">${esc(x.title)}</div>
+      <div class="sub">${esc(x.shop_name||'')}${days(x)!=null?`・${days(x)}日で売れた`:''}</div></a>`).join('')+`</div>`+(list.length>200?`<p class="sub">ほか${list.length-200}本</p>`:'');
+}
+async function runMarket(){ mkmsg.textContent=' 調べています（数分かかります）…';
+  for(let i=0;i<20;i++){ const r=await etsyCall('market_scan'); if(r.error){ mkmsg.textContent=' 止まりました：'+r.error; return }
+    mkmsg.textContent=r.phase==='scan'?` 出品を控えています（${r.scanned}件）…`:r.phase==='check'?` 消えた出品を確かめています（売れた${r.sold}本）…`:` 終わりました（売れた${r.sold}本）`;
+    if(r.phase==='done') break }
+  loadMarket();
+}
+async function loadResearch(){ loadMarket(); rcards.innerHTML='<p class="sub">集計しています…</p>';
   const its=await allRows(()=>sb.from('items').select('kno,status,title,cost_jpy,listed_on,first_listed_on,sold_on,research(name,brand,model),orders(platform,country,item_price_jpy,ship_charged_jpy,ship_actual_jpy,ship_est_jpy,sales_fee_jpy,payoneer_fee_jpy,duty_jpy,sales_usd)').order('kno'));
   const g={}, med=a=>{ if(!a.length) return null; a=[...a].sort((x,y)=>x-y); return a[Math.floor(a.length/2)] };
   its.forEach(r=>{ const mk=r.research?.name?null:modelKey(r.title); const n=r.research?.name||mk?.name; if(!n) return; const x=g[n]??={name:n,brand:r.research?.brand||mk?.brand||'',guess:!!mk,sold:0,listed:0,stock:0,old:0,sales:[],ips:[],prof:[],days:[],costs:[],eb:0,et:0};
@@ -2037,12 +2084,52 @@ async function loadPf(){
 // 販売情報から仕入値を直す（2026-10-20）。保存したら一覧を読み直して利益も変える
 async function saveCost(kno,el){ const v=el.value.trim(); const {error}=await sb.from('items').update({cost_jpy:v===''?null:Math.round(+v)}).eq('kno',kno);
   if(error){ el.style.outline='2px solid #e5342a'; el.title='保存できません：'+error.message; return } loadOrders(); }
+// eLogiの取込CSV（Etsyの注文）2026-10-20。決まり：注文種類=その他／HS 910211／申告単価＝商品代のみ（送料・税は除く、ショップのクーポンは割引後）
+//   電話＝数字だけ（アメリカの先頭の1は外す）、無ければ発送元 08026725538／アメリカは原産国・EORIは空欄、州は2文字／EUはIOSS（EtsyのIM3720000224）と原産国JP
+const SHIP_TEL=''; // 発送元の電話（電話が無い注文に入れる）
+const EU=['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];
+async function elogiCsv(){
+  const ids=[...document.querySelectorAll('.elck:checked')].map(x=>x.value).filter((v,i,a)=>a.indexOf(v)===i);
+  if(!ids.length){ elmsg.textContent='Etsyの注文に✓を入れてください'; return }
+  elmsg.textContent='Etsyから届け先を読んでいます…'; const r=await etsyCall('elogi_receipts',{receipt_ids:ids});
+  if(r.error){ elmsg.textContent='読めませんでした：'+r.error; return }
+  const skus=r.receipts.flatMap(o=>o.items.map(t=>Number(t.sku))).filter(Boolean);
+  const {data:its}=skus.length?await sb.from('items').select('kno,photos').in('kno',skus):{data:[]};
+  const photo=Object.fromEntries((its||[]).map(i=>[String(i.kno),(i.photos||[])[0]||'']));
+  const cn=new Intl.DisplayNames(['en'],{type:'region'});
+  const H=['注文種類','注文番号','注文日','SKU','商品画像URL','商品タイトル','数量','(必須)通貨(USD,EUR,GBP,AUD)','(必須)申告単価/個','購入者ID','受取人氏名','受取人会社名','(必須)電話番号','メールアドレス','国名','州コード/州名','市','郵便番号','(必須)住所１','住所２','住所３','HS/HTSコード','原産国','受取人 納税者ID（SIN/PCCC/RFC番号等）','プラットフォーム指定の事前徴収ID（IOSS/VAT番号等）','EORI番号'];
+  const rows=[], notes=[];
+  for(const o of r.receipts){
+    const c=o.country_iso, us=c==='US';
+    let tel=String(o.phone||'').replace(/\D/g,''); if(us&&tel.length===11&&tel.startsWith('1')) tel=tel.slice(1);
+    if(!tel&&SHIP_TEL){ tel=SHIP_TEL; notes.push(`${o.receipt_id}：電話番号がEtsyに無いので、発送元の番号（${SHIP_TEL}）を入れました`) }
+    const tot=o.items.reduce((a,t)=>a+t.price*t.qty,0)||1;
+    for(const t of o.items){
+      const unit=Math.round((t.price*t.qty-o.discount*(t.price*t.qty)/tot)/t.qty*100)/100;
+      const row=['その他',o.receipt_id,o.created||'',t.sku,photo[t.sku]||'',t.title,t.qty,o.currency||'USD',unit.toFixed(2),'',o.name,'',tel,o.email,
+        c?cn.of(c):'',us?String(o.state||'').toUpperCase().slice(0,2):(o.state||''),o.city,o.zip,o.first_line,o.second_line||'','','910211',
+        EU.includes(c)?'JP':'','',EU.includes(c)?'IM3720000224':c==='CH'?'CHE-373.086.513':'',''];
+      rows.push(row);
+      const miss=[[7,'通貨'],[8,'申告単価'],[12,'電話番号'],[18,'住所１'],[2,'注文日']].filter(([i])=>!String(row[i]||'').trim()||row[i]==='0.00').map(([,n])=>n);
+      if(miss.length) notes.push(`${o.receipt_id}（${t.sku||'SKUなし'}）：空の必須項目＝${miss.join('・')}`);
+      if(o.discount) notes.push(`${o.receipt_id}：ショップのクーポン $${o.discount} を引いた額で申告しています`);
+      if(!us&&!EU.includes(c)&&c!=='CH') notes.push(`${o.receipt_id}：${cn.of(c)}向け。原産国・事前徴収IDは空欄です（必要なら入れてください）`);
+    }
+  }
+  for(const f of r.fails||[]) notes.push('読めなかった注文：'+f);
+  if(!rows.length){ elmsg.textContent=notes.join('\n')||'作れる行がありません'; return }
+  const q=v=>{ v=String(v??''); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v };
+  const text='\uFEFF'+[H,...rows].map(r=>r.map(q).join(',')).join('\r\n')+'\r\n';
+  const name=`order_import_${r.receipts.map(o=>o.receipt_id).join('_')}.csv`;
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  elmsg.textContent=`${name} を作りました（${rows.length}行）。`+(notes.length?'\n'+[...new Set(notes)].join('\n'):'');
+}
 async function loadOrders(){
   const [y,m]=om.value.split('-'); const last=new Date(+y,+m,0).getDate();
   let q=sb.from('orders').select('*,items(cost_jpy)').gte('ordered_on',`${y}-${m}-01`).lte('ordered_on',`${y}-${m}-${last}`).order('ordered_on');
   if(onp.checked) q=q.eq('processed',false);
   const {data}=await q;
-  obody.innerHTML=(data||[]).map(o=>`<tr><td>${o.ordered_on}</td><td>${o.order_no||''}</td><td>${o.kno||''}</td><td>${o.platform}</td><td class=n>${yen(o.item_price_jpy)}</td><td class=n>${yen(o.ship_charged_jpy)}</td><td class=n>${hasShip(o)?yen(o.ship_actual_jpy):`<span class=sub title="実送料が入っていない（または1,000円未満で円ではなさそうな値）ので、決まりの額で計算しています">${yen(shipRule(o))}（決まり）</span>`}</td><td class=n>${yen(o.duty_jpy)}</td><td>${o.country||''}</td><td>${o.processed?'処理済':'<span class=neg>未処理</span>'}</td><td class=n>${o.kno?`<input type=number inputmode=numeric style="width:96px;text-align:right" value="${o.items?.cost_jpy??''}" placeholder="未入力" title="仕入値（円）。変えるとすぐ保存" onchange="saveCost(${o.kno},this)">`:''}</td>${profitCell({status:'sold',cost_jpy:o.items?.cost_jpy,orders:[o]},null)}</tr>`).join('')||'<tr><td colspan=12 class=sub>データがありません</td></tr>';
+  obody.innerHTML=(data||[]).map(o=>`<tr><td>${o.platform==='Etsy'&&o.order_no?`<input type=checkbox class=elck value="${o.order_no}">`:''}</td><td>${o.ordered_on}</td><td>${o.order_no||''}</td><td>${o.kno||''}</td><td>${o.platform}</td><td class=n>${yen(o.item_price_jpy)}</td><td class=n>${yen(o.ship_charged_jpy)}</td><td class=n>${hasShip(o)?yen(o.ship_actual_jpy):`<span class=sub title="実送料が入っていない（または1,000円未満で円ではなさそうな値）ので、決まりの額で計算しています">${yen(shipRule(o))}（決まり）</span>`}</td><td class=n>${yen(o.duty_jpy)}</td><td>${o.country||''}</td><td>${o.processed?'処理済':'<span class=neg>未処理</span>'}</td><td class=n>${o.kno?`<input type=number inputmode=numeric style="width:96px;text-align:right" value="${o.items?.cost_jpy??''}" placeholder="未入力" title="仕入値（円）。変えるとすぐ保存" onchange="saveCost(${o.kno},this)">`:''}</td>${profitCell({status:'sold',cost_jpy:o.items?.cost_jpy,orders:[o]},null)}</tr>`).join('')||'<tr><td colspan=13 class=sub>データがありません</td></tr>';
 }
 
 // CSV取込（eBayStock export/items_full.csv）
@@ -2484,7 +2571,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020194705';
+const BUILD='20261020202235';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
