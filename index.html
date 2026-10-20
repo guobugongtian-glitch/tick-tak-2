@@ -1273,6 +1273,7 @@ async function openItem(kno,quick){ dlg.classList.toggle('quick',!!quick);
     const {data:st}=await sb.from('items').select('kno,title,memo,cost_jpy,purchased_on').eq('status','stock').order('kno',{ascending:false}).limit(200);
     stockpick.classList.toggle('hide',!quick||!st?.length);
     if(st?.length) stocksel.innerHTML='<option value="">仕入れ済みの商品から選ぶ（'+st.length+'件）</option>'+st.map(x=>`<option value="${x.kno}">${String(x.title||(x.memo||'').split('\n')[0].replace(/^台帳：/,'')||'品番'+x.kno).replace(/[<>&]/g,'').slice(0,34)}｜${x.purchased_on||''}｜${yen(x.cost_jpy)}円</option>`).join(''); }
+  if(!ifm.condition.value||!CONDS.includes(ifm.condition.value)) ifm.condition.value='Near MINT';  // 状態が空の商品は Near MINT（空のまま開くと先頭の Unused で保存されていた）
   tlen.textContent=ifm.title.value.length; calcI(); dlg.showModal(); showPast(); spmsg.textContent=''; loadSpecVals(); seoCheck();
 }
 function calcI(){ const s=getS(), pr=+ifm.price_usd.value, sh=+ifm.shipping_usd.value||0, cost=+ifm.cost_jpy.value, el=$('iprofit');
@@ -2228,7 +2229,7 @@ async function importEtsyListings(rows, ix){
     knos.add(kno); titles.add(t);
     const photos=[1,2,3,4,5,6,7,8,9,10].map(i=>v(r,'IMAGE'+i)).filter(Boolean);
     const cur=v(r,'CURRENCY_CODE')||'USD', price=+v(r,'PRICE').replace(/[,$]/g,'')||null;
-    items.push({kno,status:'listed',location_status:'出品中',title:t,price_usd:cur==='USD'?price:null,photos:photos.length?photos:null,
+    items.push({kno,status:'listed',location_status:'出品中',condition:'Near MINT',title:t,price_usd:cur==='USD'?price:null,photos:photos.length?photos:null,
       memo:'EtsyのCSVから'+(cur!=='USD'&&price?`（値段 ${price} ${cur}）`:'')+(/^\d+$/.test(sku)?'':'（SKUなし→品番を振った）')}) }
   for(let i=0;i<items.length;i+=500){ const {error}=await sb.from('items').insert(items.slice(i,i+500)); if(error) return {ok:false,msg:'Etsyの出品の取込失敗：'+error.message} }
   etmatch.innerHTML=given.length?`<div class="card" style="margin-top:8px"><b>Etsyの出品のSKUに、この品番を入れてください</b><p class="sub">SKUが品番と同じだと、売れたときに自動で「売れた」になります。仕入値・仕入日は商品を開いて入れてください。</p><div class="tbl"><table><thead><tr><th>品番（SKUに入れる）</th><th>Etsyのタイトル</th></tr></thead><tbody>${given.map(g=>`<tr><td><b>${g.kno}</b></td><td>${g.t.replace(/[<>&]/g,'')}</td></tr>`).join('')}</tbody></table></div></div>`:'';
@@ -2254,7 +2255,7 @@ async function importEtsy(rows, ix){
   for(let i=0;i<kn.length;i+=500){ const {data}=await sb.from('items').select('kno').in('kno',kn.slice(i,i+500)); (data||[]).forEach(x=>have.add(x.kno));
     const {data:od}=await sb.from('orders').select('kno,platform').in('kno',kn.slice(i,i+500)); (od||[]).forEach(x=>{ if(x.platform==='eBay') ebay.add(x.kno) }); }
   // 友達用：Watch Stockに無い品番は、Etsyの商品名で商品を作ってから入れる（仕入値は空。あとで本人が入れる）
-  let made=0; if(ETSY_AUTO_ITEM){ const mk=new Map(); orders.forEach(o=>{ if(!have.has(o.kno)&&!mk.has(o.kno)) mk.set(o.kno,{kno:o.kno,status:'listed',title:o._name||null,memo:'Etsyの注文CSVから作成（仕入値・仕入日は未入力）'}) });
+  let made=0; if(ETSY_AUTO_ITEM){ const mk=new Map(); orders.forEach(o=>{ if(!have.has(o.kno)&&!mk.has(o.kno)) mk.set(o.kno,{kno:o.kno,status:'listed',condition:'Near MINT',title:o._name||null,memo:'Etsyの注文CSVから作成（仕入値・仕入日は未入力）'}) });
     const add=[...mk.values()]; for(let i=0;i<add.length;i+=500){ const {error}=await sb.from('items').insert(add.slice(i,i+500)); if(error) return {ok:false,msg:'商品の作成失敗：'+error.message} }
     add.forEach(x=>have.add(x.kno)); made=add.length; }
   orders.forEach(o=>delete o._name);
@@ -2448,7 +2449,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020174544';
+const BUILD='20261020175035';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
