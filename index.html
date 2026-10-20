@@ -866,7 +866,7 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
     <fieldset class="fs-list"><legend>商品名と説明</legend>
       <label class="sub">商品名（英語・<span id="tlen">0</span>/140字）</label>
       <textarea name="title" maxlength="140" rows="3" class="ttl" placeholder="[Near MINT] Brand Model Ref ... Watch From JAPAN" oninput="tlen.textContent=this.value.length;seoCheck()"></textarea>
-      <div class="row"><button class="btn s" type="button" onclick="titleIdeas()">売れたタイトルから案を出す</button><button class="btn s" type="button" onclick="boostTitle()">空いた字数に検索語を足す</button><button class="btn s" type="button" onclick="otherTitles()">ほかのセラーのタイトルを見る</button></div><div id="tideas" class="tideas"></div>
+      <div class="row"><button class="btn s" type="button" onclick="titleIdeas()">売れたタイトルから案を出す</button><button class="btn s" type="button" onclick="boostTitle()">空いた字数に検索語を足す</button><button class="btn s" type="button" onclick="otherTitles()">ほかのセラーのタイトルを見る</button><button class="btn s" type="button" onclick="openEtsySearch()">Etsyで同じ型を見る</button></div><div id="tideas" class="tideas"></div>
       <div id="seo" class="note"></div>
       <div class="g2" style="margin-top:8px">
         <label>シリアルNo<input name="serial_no"></label>
@@ -1231,6 +1231,9 @@ function boostTitle(){ let t=ifm.title.value.trim(); const tail=/\s*(From\s+JAPA
   if(!added) seo.innerHTML+='<div class="sub">足せる語がありませんでした（スペックが空か、もう入っています）。</div>'; }
 // 同じ型を出している、ほかのセラーのタイトルを見る。eBayの検索で上のほうに出ている順（＝eBayが売れやすいと見ている順）
 // 押すとそのタイトルが入る（状態は自分のものに差し替え）。みんなが使っていて自分のタイトルに無い語も出す
+// Etsyで同じ型番を検索する（新しいタブ。ほかのセラーのタイトルと値段がすぐ見られる）
+function openEtsySearch(){ const q=specQuery(); if(q.length<3){ tideas.innerHTML='<span class="sub">先にタイトルか型番を入れてください。</span>'; return }
+  window.open('https://www.etsy.com/search?q='+encodeURIComponent(q+' watch'),'_blank','noopener') }
 async function otherTitles(){ const q=specQuery();
   if(q.length<3){ tideas.innerHTML='<span class="sub">先に型番（とブランド）を入れてください。</span>'; return }
   tideas.innerHTML=`<span class="sub">eBayで「${q.replace(/[<>&]/g,'')}」を調べています…</span>`; const r=await ebayCall('lookup_specs',{q});
@@ -2474,7 +2477,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020175821';
+const BUILD='20261020175846';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
