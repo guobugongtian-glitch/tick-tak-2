@@ -1086,8 +1086,14 @@ function specsToSize(o){ SIZE.forEach(([id,k,u])=>{ const m=String(o?.[k]??'').m
 // 型番でeBayの出品を探し、サイズとスペックの「多い値」を空欄に入れる（ほかの出品者の入力なので参考）
 const sizeNum=(str,u)=>{ const m=String(str??'').match(/([\d.]+)\s*(mm|cm|in|"|inch)?/i); if(!m) return null; let v=+m[1]; const un=(m[2]||u).toLowerCase().replace('inch','in').replace('"','in');
   if(un!==u) v=un==='in'?(u==='mm'?v*25.4:v*2.54):un==='cm'&&u==='mm'?v*10:un==='mm'&&u==='cm'?v/10:v; return Math.round(v*10)/10 };
-async function lookupSpecs(){ const sp=k=>(document.querySelector(`[data-spec="${k}"]`)?.value||'').trim();
+// eBayで探す言葉：スペックのブランド＋型番。無ければタイトルから型番を読む（Etsyから入れた商品はスペックが空なので）
+function specQuery(){ const sp=k=>(document.querySelector(`[data-spec="${k}"]`)?.value||'').trim();
   const model=sp('Reference Number')||sp('Model')||ifm.research_name.value.trim(), q=[sp('Brand'),model].filter(Boolean).join(' ');
+  if(q.length>=3&&sp('Brand')) return q; const t=ifm.title.value, mk=modelKey(t), ref=(t.toUpperCase().match(/\b[0-9][0-9A-Z]{2,3}-[0-9A-Z]{3,4}\b|\b[A-Z]{1,3}-?\d{2,5}[A-Z]?\b/)||[])[0];
+  if(mk){ const nm=mk.name.toUpperCase().startsWith(mk.brand.toUpperCase())?mk.name:mk.brand+' '+mk.name; return /\d/.test(nm)||!ref?nm:mk.brand+' '+ref }
+  const w=t.replace(/\[[^\]]*\]/g,' ').replace(/\b(near|mint|exc\+?\d?|top|almost|unused|vintage|w\/box|w\/|box)\b/gi,' ').replace(/[^A-Za-z0-9.\- ]/g,' ').trim().split(/\s+/).filter(Boolean);
+  return w.length>=2?w.slice(0,5).join(' '):q }
+async function lookupSpecs(){ const q=specQuery();
   if(q.length<3){ szmsg.textContent='先に型番（とブランド）を入れてください。'; return }
   szmsg.textContent=`eBayで「${q}」を調べています…`; const r=await ebayCall('lookup_specs',{q});
   if(r.error){ szmsg.textContent='調べられません：'+r.error; return }
@@ -1221,7 +1227,7 @@ function boostTitle(){ let t=ifm.title.value.trim(); const tail=/\s*(From\s+JAPA
   if(!added) seo.innerHTML+='<div class="sub">足せる語がありませんでした（スペックが空か、もう入っています）。</div>'; }
 // 同じ型を出している、ほかのセラーのタイトルを見る。eBayの検索で上のほうに出ている順（＝eBayが売れやすいと見ている順）
 // 押すとそのタイトルが入る（状態は自分のものに差し替え）。みんなが使っていて自分のタイトルに無い語も出す
-async function otherTitles(){ const model=spv('Reference Number')||spv('Model')||ifm.research_name.value.trim(), q=[spv('Brand'),model].filter(Boolean).join(' ');
+async function otherTitles(){ const q=specQuery();
   if(q.length<3){ tideas.innerHTML='<span class="sub">先に型番（とブランド）を入れてください。</span>'; return }
   tideas.innerHTML=`<span class="sub">eBayで「${q.replace(/[<>&]/g,'')}」を調べています…</span>`; const r=await ebayCall('lookup_specs',{q});
   const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -1274,7 +1280,9 @@ async function openItem(kno,quick){ dlg.classList.toggle('quick',!!quick);
     stockpick.classList.toggle('hide',!quick||!st?.length);
     if(st?.length) stocksel.innerHTML='<option value="">仕入れ済みの商品から選ぶ（'+st.length+'件）</option>'+st.map(x=>`<option value="${x.kno}">${String(x.title||(x.memo||'').split('\n')[0].replace(/^台帳：/,'')||'品番'+x.kno).replace(/[<>&]/g,'').slice(0,34)}｜${x.purchased_on||''}｜${yen(x.cost_jpy)}円</option>`).join(''); }
   if(!ifm.condition.value||!CONDS.includes(ifm.condition.value)) ifm.condition.value='Near MINT';  // 状態が空の商品は Near MINT（空のまま開くと先頭の Unused で保存されていた）
-  tlen.textContent=ifm.title.value.length; calcI(); dlg.showModal(); showPast(); spmsg.textContent=''; loadSpecVals(); seoCheck();
+  tlen.textContent=ifm.title.value.length; calcI(); dlg.showModal(); showPast();
+  // 友達用：スペックが空の商品を開いたら、ほかのセラーの出品からスペックとタイトル案を自動で出す
+  if(AUTO_LOOKUP&&kno&&![...document.querySelectorAll('[data-spec]')].some(i=>i.value)&&specQuery().length>=3) setTimeout(()=>{ lookupSpecs(); otherTitles() },300); spmsg.textContent=''; loadSpecVals(); seoCheck();
 }
 function calcI(){ const s=getS(), pr=+ifm.price_usd.value, sh=+ifm.shipping_usd.value||0, cost=+ifm.cost_jpy.value, el=$('iprofit');
   if(!pr){ el.textContent='—'; return } const gross=(pr+sh)*s.fx, fee=gross*(s.fee+s.pay)/100, p=cost?gross-fee-cost-s.ship:null;
@@ -2216,7 +2224,8 @@ async function importSales(rows, ix){
 // 円は「設定」の為替で計算した仮の数字。手数料は空のまま（Etsyの月次明細から入れる）
 const ETSY_CC={'United States':'US','Israel':'IL','United Kingdom':'GB','Canada':'CA','Australia':'AU','Germany':'DE','France':'FR','Italy':'IT','Spain':'ES','Netherlands':'NL','Switzerland':'CH','Singapore':'SG','Hong Kong':'HK','Taiwan':'TW','Korea, South':'KR','South Korea':'KR','Japan':'JP','New Zealand':'NZ','Ireland':'IE','Belgium':'BE','Sweden':'SE','Denmark':'DK','Norway':'NO','Austria':'AT','Mexico':'MX'};
 // Etsyの出品一覧CSV → 出品中の商品。SKUが数字ならそれを品番に、無ければ空いている品番を振る。同じSKU・同じタイトルの商品がもうあれば入れない
-const ETSY_AUTO_ITEM=true;  // 友達用では true（build_friend.py が書き換える）
+const ETSY_AUTO_ITEM=true;
+const AUTO_LOOKUP=true;  // 友達用では true（商品を開いたらスペック・タイトル案を自動で出す）  // 友達用では true（build_friend.py が書き換える）
 async function importEtsyListings(rows, ix){
   const v=(r,k)=>(r[ix[k]]??'').trim(); const rs=rows.filter(r=>v(r,'TITLE'));
   if(!rs.length) return {ok:false,msg:'Etsyの出品が1行もありません'};
@@ -2449,7 +2458,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020175035';
+const BUILD='20261020175311';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
