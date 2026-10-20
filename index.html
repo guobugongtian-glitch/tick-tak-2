@@ -609,7 +609,7 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
   <div class="row sub"><span id="cnt"></span><a href="#" class="stl" onclick="refreshStats();return false">eBayの数字を更新</a><button class="lbtog" onclick="labelMode(!LBSEL)">🏷 ラベルを印刷</button></div>
   <div id="lbbar" class="hide"><span id="lbcnt">0本を選択中</span><select id="lbstart2" title="何枚目から"></select><button class="btn s" onclick="lbAll()">全部</button><button class="btn" onclick="printLabels([...LBSEL])">印刷</button><button class="btn s" onclick="labelMode(false)">やめる</button></div>
   <div class="tbl"><table>
-    <thead><tr><th>写真</th><th>品番</th><th>仕入日</th><th>状態</th><th>(型番)<br>出品タイトル</th><th class="n">売価</th><th class="n">仕入値</th><th class="n">想定利益</th><th class="n st">eBayの反応</th></tr></thead>
+    <thead><tr><th>写真</th><th>品番</th><th>仕入日</th><th>状態</th><th>(型番)<br>出品タイトル</th><th class="n">売価</th><th class="n">仕入値</th><th class="n">利益<br><span class=sub>売れた分は実額</span></th><th class="n st">eBayの反応</th></tr></thead>
     <tbody id="itbody"></tbody>
   </table></div>
 </section>
@@ -737,7 +737,7 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
 <section id="v-orders" class="hide">
   <div class="card row">期間：<input type="month" id="om"><button class="btn" onclick="loadOrders()">表示</button>
     <label><input type="checkbox" id="onp"> 未処理のみ</label></div>
-  <div class="tbl"><table><thead><tr><th>注文日</th><th>注文番号</th><th>品番</th><th>販路</th><th class="n">商品価格</th><th class="n">販売送料</th><th class="n">実送料</th><th class="n">関税</th><th>国</th><th>状態</th></tr></thead><tbody id="obody"></tbody></table></div>
+  <div class="tbl"><table><thead><tr><th>注文日</th><th>注文番号</th><th>品番</th><th>販路</th><th class="n">商品価格</th><th class="n">販売送料</th><th class="n">実送料</th><th class="n">関税</th><th>国</th><th>状態</th><th class="n">利益</th></tr></thead><tbody id="obody"></tbody></table></div>
 </section>
 
 <!-- 取込/設定 -->
@@ -1005,8 +1005,17 @@ async function initFilters(){
 let RES = {};
 // 長期在庫：仕入日（なければ最初に出品した日）から何日たったか。listed_onは出し直しで新しくなるので使わない。売れた分は数えない。90日〜黄、180日〜赤（2026-10-20 本人「長期在庫は目立たせて」）
 const ageDays=r=>{ const d=r.purchased_on||r.first_listed_on||r.listed_on; return r.status==='sold'||!d?0:Math.floor((Date.now()-new Date(d))/864e5) };
+// 利益の欄。売れた商品は注文の実額（手数料が無ければ設定の%で推定、送料は決まりの額）から、仕入値を引く。仕入値が無ければ「手取り」を出す
+function profitCell(r,p){ const o=r.status==='sold'?r.orders?.[0]:null;
+  if(o&&(o.item_price_jpy||o.ship_charged_jpy)){ const st=getS(), sales=(o.item_price_jpy||0)+(o.ship_charged_jpy||0);
+    const fee=o.sales_fee_jpy!=null?o.sales_fee_jpy+(o.payoneer_fee_jpy||0):Math.round(sales*(+st.fee+ +st.pay)/100);
+    const net=sales-fee-shipOf(o)-(o.duty_jpy||0);
+    if(!r.cost_jpy) return `<td class=n title="売上${yen(sales)}−手数料${yen(fee)}−送料${yen(shipOf(o))}">手取り ${yen(net)}円<br><span class=sub>仕入値なし</span></td>`;
+    const pr=net-r.cost_jpy; return `<td class="n ${pr<0?'neg':''}" title="売上${yen(sales)}−手数料${yen(fee)}−送料${yen(shipOf(o))}−仕入${yen(r.cost_jpy)}"><b>${yen(pr)}円</b></td>` }
+  if(!r.cost_jpy) return '<td class=n><span class=sub>仕入値なし</span></td>';
+  return `<td class="n ${p&&p.p<0?'neg':''}">${p?yen(p.p)+'円':'—'}</td>` }
 async function loadItems(){
-  let q = sb.from('items').select(F.status==='sold'?'*,research(name),orders(platform)':'*,research(name)').eq('status',F.status);
+  let q = sb.from('items').select(F.status==='sold'?'*,research(name),orders(platform,country,item_price_jpy,ship_charged_jpy,ship_actual_jpy,ship_est_jpy,sales_fee_jpy,payoneer_fee_jpy,duty_jpy)':'*,research(name)').eq('status',F.status);
   // 売れた分は売れた日の新しい順（品番順だと古い品番の売れた分が埋もれる）
   if(F.status==='sold') q=q.order('sold_on',{ascending:false,nullsFirst:false});
   q=q.order('kno',{ascending:false}).limit(F.status==='sold'?120:300);
@@ -1023,7 +1032,7 @@ async function loadItems(){
     return `<tr class="st-${r.status}${ac}${LBSEL?.has(r.kno)?' lbon':''}" data-kno="${r.kno}"${sd?` data-sold="${sd}"`:''}><td class="ph" onclick="tapItem(${r.kno},this)">${img}${ac?`<span class="age">${ad}日</span>`:''}</td><td><a class=k onclick="openItem(${r.kno})">${r.kno}</a></td><td>${r.purchased_on||''}</td><td>${r.condition||''}</td>
     <td><span class=sub>(${r.research?.name||''})${sd?'　売れた日 '+r.sold_on+(r.orders?.[0]?.platform?'（'+r.orders[0].platform+'）':''):''}</span><br>${r.title||(r.memo||'').split('\n')[0]||''}</td>
     <td class=n>${r.price_usd?'$'+r.price_usd:''}</td>
-    <td class=n>${yen(r.cost_jpy)}円</td><td class="n ${p&&p.p<0?'neg':''}">${p?yen(p.p)+'円':'—'}</td><td class="n st">${statCell(r)}</td></tr>` }).join('');
+    <td class=n>${r.cost_jpy?yen(r.cost_jpy)+'円':'<span class=sub>未入力</span>'}</td>${profitCell(r,p)}<td class="n st">${statCell(r)}</td></tr>` }).join('');
   if(F.status==='listed'&&!k) autoStats(data);
 }
 // eBayの数字（表示回数・閲覧数は直近30日、ウォッチ数はいま）。数字は「eBayの数字を更新」か、出品中を開いたとき6時間おきに自動で取り直す
@@ -2003,10 +2012,10 @@ async function loadPf(){
 // 販売情報
 async function loadOrders(){
   const [y,m]=om.value.split('-'); const last=new Date(+y,+m,0).getDate();
-  let q=sb.from('orders').select('*').gte('ordered_on',`${y}-${m}-01`).lte('ordered_on',`${y}-${m}-${last}`).order('ordered_on');
+  let q=sb.from('orders').select('*,items(cost_jpy)').gte('ordered_on',`${y}-${m}-01`).lte('ordered_on',`${y}-${m}-${last}`).order('ordered_on');
   if(onp.checked) q=q.eq('processed',false);
   const {data}=await q;
-  obody.innerHTML=(data||[]).map(o=>`<tr><td>${o.ordered_on}</td><td>${o.order_no||''}</td><td>${o.kno||''}</td><td>${o.platform}</td><td class=n>${yen(o.item_price_jpy)}</td><td class=n>${yen(o.ship_charged_jpy)}</td><td class=n>${hasShip(o)?yen(o.ship_actual_jpy):`<span class=sub title="実送料が入っていない（または1,000円未満で円ではなさそうな値）ので、決まりの額で計算しています">${yen(shipRule(o))}（決まり）</span>`}</td><td class=n>${yen(o.duty_jpy)}</td><td>${o.country||''}</td><td>${o.processed?'処理済':'<span class=neg>未処理</span>'}</td></tr>`).join('')||'<tr><td colspan=10 class=sub>データがありません</td></tr>';
+  obody.innerHTML=(data||[]).map(o=>`<tr><td>${o.ordered_on}</td><td>${o.order_no||''}</td><td>${o.kno||''}</td><td>${o.platform}</td><td class=n>${yen(o.item_price_jpy)}</td><td class=n>${yen(o.ship_charged_jpy)}</td><td class=n>${hasShip(o)?yen(o.ship_actual_jpy):`<span class=sub title="実送料が入っていない（または1,000円未満で円ではなさそうな値）ので、決まりの額で計算しています">${yen(shipRule(o))}（決まり）</span>`}</td><td class=n>${yen(o.duty_jpy)}</td><td>${o.country||''}</td><td>${o.processed?'処理済':'<span class=neg>未処理</span>'}</td>${profitCell({status:'sold',cost_jpy:o.items?.cost_jpy,orders:[o]},null)}</tr>`).join('')||'<tr><td colspan=11 class=sub>データがありません</td></tr>';
 }
 
 // CSV取込（eBayStock export/items_full.csv）
@@ -2434,7 +2443,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020172043';
+const BUILD='20261020172221';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
