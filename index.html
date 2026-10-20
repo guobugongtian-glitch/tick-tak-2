@@ -540,6 +540,10 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
   #v-items tr.old90{outline:3px solid #f5a623;outline-offset:-3px}
   #v-items tr.old180 td,#v-items tr.old90 td{background:none}
 }
+/* 友達用：Etsyだけ。eBayの画面を隠す */
+#v-items .stl,#v-items .st,th.st,#soldcard,#rvcard,#ebmsg,#ebpol,.row:has(> button[onclick="ebayConnect()"]),
+#phbtn,#verbtn,#chkbtn,#revbtn,#endbtn,#qbtn,#pubbtn,
+label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_policy"]),label:has(> input[name="store_cat1"]),label:has(> select[name="ebay_condition"]){display:none!important}
 </style>
 </head>
 <body>
@@ -621,7 +625,7 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
     <button onclick="go('orders')">販売情報</button>
     <button onclick="go('card')">カード明細</button>
     <button onclick="go('bank')">銀行明細</button>
-    <button onclick="go('io')">取込・eBay接続・設定</button>
+    <button onclick="go('io')">取込・設定</button>
   </div>
 </section>
 
@@ -793,7 +797,7 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
     <p id="djmsg" class="sub"></p>
   </div>
   <div class="card">
-    <h3 style="margin-top:0">eBayとの接続</h3>
+    <h3 style="margin-top:0">Etsyとの接続</h3>
     <p id="ebmsg" class="sub">確認していません</p>
     <div class="row"><button class="btn" onclick="ebayConnect()">eBayと接続する</button><button class="btn s" onclick="ebayStatus()">接続を確認</button><button class="btn s" onclick="ebaySync()">出品中の写真を取り込む</button><button class="btn s" onclick="ebayOrders()">売れた分を取り込む</button></div>
     <div id="ebpol" class="sub"></div>
@@ -806,7 +810,7 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
     <h3 style="margin-top:0">計算の設定</h3>
     <div class="g2">
       <label>為替 (円/$)<input id="s_fx" type="number" step="0.01"></label>
-      <label>eBay手数料率 (%)<input id="s_fee" type="number" step="0.01"></label>
+      <label>Etsy手数料率 (%)<input id="s_fee" type="number" step="0.01"></label>
       <label>Payoneer手数料 (%)<input id="s_pay" type="number" step="0.01"></label>
       <label>実送料の目安 (円)<input id="s_ship" type="number"></label>
     </div>
@@ -2470,7 +2474,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020175415';
+const BUILD='20261020175821';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
