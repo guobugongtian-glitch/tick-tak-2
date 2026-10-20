@@ -551,6 +551,14 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
   <div class="row"><button class="btn" onclick="login()">ログイン</button><span id="lmsg" class="sub"></span></div>
 </div>
 
+<div id="setpw" class="card hide">
+  <h3>パスワードを決める</h3>
+  <p class="sub">次からはメールアドレスとこのパスワードでログインします。8文字以上。</p>
+  <div class="row"><input id="pw1" type="password" placeholder="パスワード" autocomplete="new-password" style="flex:1"></div>
+  <div class="row"><input id="pw2" type="password" placeholder="もう一度" autocomplete="new-password" style="flex:1"></div>
+  <div class="row"><button class="btn" onclick="setPw()">決める</button><span id="pwmsg" class="sub"></span></div>
+</div>
+
 <div id="app" class="hide">
 <header>
   <b>Watch Stock</b>
@@ -901,6 +909,8 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
 // ← Supabaseの値に差し替える
 const SUPABASE_URL = 'https://wzymuwwseyklkfngxewh.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6eW11d3dzZXlrbGtmbmd4ZXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0NjcxMjMsImV4cCI6MjEwODA0MzEyM30.o4P-Rp9bnKfQLD4TMuaE21PZi1A1Ye-wwhwTXmhggDY';
+// 招待メール・パスワード再設定のリンクから来たとき（#...type=invite / recovery）。createClient がURLの後ろを消す前に覚えておく
+const AUTH_TYPE=(location.hash.match(/type=(invite|recovery)/)||[])[1]||'';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const CONDS = ['Unused','Almost Unused','Top MINT','MINT','Almost MINT','Near MINT','Exc+5','Exc+4','Exc+3','Exc','As-Is','For Parts','Brand New'];
@@ -925,9 +935,13 @@ const fmtP = x => x ? `利益 ${yen(x.p)}円 (${x.r.toFixed(0)}%)` : '—';
 // ログイン
 async function login(){ const {error}=await sb.auth.signInWithPassword({email:em.value,password:pw.value});
   if(error){ lmsg.textContent='ログインできません：'+error.message; return } boot(); }
+async function setPw(){ if(pw1.value.length<8){ pwmsg.textContent='8文字以上にしてください'; return } if(pw1.value!==pw2.value){ pwmsg.textContent='2回の入力が違います'; return }
+  const {error}=await sb.auth.updateUser({password:pw1.value}); if(error){ pwmsg.textContent='決められません：'+error.message; return }
+  window.__pwSet=true; $('setpw').classList.add('hide'); boot(); }
 async function boot(){
   const {data:{session}} = await sb.auth.getSession();
   if(!session){ $('login').classList.remove('hide'); return }
+  if(AUTH_TYPE&&!window.__pwSet){ $('setpw').classList.remove('hide'); return }
   $('login').classList.add('hide'); $('app').classList.remove('hide');
   const s=getS(); s_fx.value=s.fx; s_fee.value=s.fee; s_pay.value=s.pay; s_ship.value=s.ship;
   initFilters(); initDialog(); initPf(); loadItems(); loadCardRules(); desctpl.value=getDescTpl(); loadHero(); loadReviewCount(); ebayOrders(true); etsyOrders(true); shopeeOrders(true); lgyear.value=new Date().getFullYear(); lgstart.value=new Date(Date.now()+9*36e5).toISOString().slice(0,10);
@@ -2391,7 +2405,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020142204';
+const BUILD='20261020142914';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
