@@ -708,6 +708,10 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
 
 <!-- 収支計算表 -->
 <section id="v-cash" class="hide">
+  <div class="card"><div class="row"><b>税務の書類</b><select id="txy"></select>
+    <button class="btn" onclick="taxDoc('kobutsu','print')">古物台帳</button><button class="btn" onclick="taxDoc('uriage','print')">売上帳</button><button class="btn" onclick="taxDoc('kessan','print')">確定申告用の年間集計</button>
+    <select id="txfmt" title="出し方"><option value="print">印刷する</option><option value="csv">Excel用CSV</option></select></div>
+    <p class="sub" id="txmsg" style="margin:4px 0 0">年を選んでボタンを押すと、Tick Takの数字から作ります。円の額は注文のときのレートで換算した額です。中身は税理士さんに見てもらってください。</p></div>
   <div class="card row">
     <button class="chip on" id="cmode-cf" onclick="CMODE='cf';loadCash()">現金収支（引き落とし基準）</button>
     <button class="chip" id="cmode-pl" onclick="CMODE='pl';loadCash()">事業のもうけ</button>
@@ -1744,6 +1748,88 @@ function loadCash(){
   ['cf','pl'].forEach(m=>{ $('cmode-'+m).classList.toggle('on',CMODE===m); $('cnote-'+m).classList.toggle('hide',CMODE!==m) });
   return CMODE==='cf' ? loadCashFlow() : loadProfit();
 }
+// ===== 税務の書類（2026-10-20）：古物台帳・売上帳・確定申告用の年間集計。年ごと =====
+//   数字はTick Takに入っているものだけ。カード明細は入れない（同じ費用を二重に数えないため）。送料が入っていない注文は決まりの額（推定）
+async function taxDoc(kind,fmt0){ const fmt=txfmt.value||fmt0, y=txy.value, from=`${y}-01-01`, to=`${y}-12-31`;
+  const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  txmsg.textContent='集めています…';
+  const nm=r=>{ const sp=r.specs||{}; return r.title||memoLine(r.memo,'台帳')||[sp.Brand,sp.Model].filter(Boolean).join(' ')||'' };
+  let title='', head=[], body=[], foot=[], notes=[], landscape=true;
+  if(kind==='kobutsu'){
+    title=`古物台帳　${y}年`;
+    const buy=await allRows(()=>sb.from('items').select('kno,title,memo,specs,serial_no,purchased_on,cost_jpy,supplier,supplier_url').gte('purchased_on',from).lte('purchased_on',to).order('purchased_on').order('kno'));
+    const os=await allRows(()=>sb.from('orders').select('kno,ordered_on,order_no,platform,country,item_price_jpy,items(title,memo,specs,serial_no)').gte('ordered_on',from).lte('ordered_on',to).order('ordered_on').order('id'));
+    head=['取引日','区分','品目','特徴（品名・型番・シリアル）','数量','代価（円）','相手方の氏名','相手方の住所','確認の方法・取引の記録','品番'];
+    const feat=r=>[nm(r),r.specs?.['Reference Number'],r.serial_no&&'S/N '+r.serial_no].filter(Boolean).join(' / ');
+    const rows=[...buy.map(r=>({d:r.purchased_on,a:['買受','時計',feat(r),1,r.cost_jpy||0,memoLine(r.memo,'出品者'),memoLine(r.memo,'住所'),[r.supplier||memoLine(r.memo,'お店'),r.supplier_url].filter(Boolean).join(' '),r.kno]})),
+      ...os.map(o=>({d:o.ordered_on,a:['売却','時計',feat(o.items||{}),1,o.item_price_jpy||0,`${o.platform}の買い手（注文 ${o.order_no||'—'}）`,o.country||'',`${o.platform} 注文番号 ${o.order_no||'—'}`,o.kno]}))].sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
+    body=rows.map(x=>[x.d.replace(/-/g,'/'),...x.a]);
+    const noName=buy.filter(r=>!memoLine(r.memo,'出品者')||!memoLine(r.memo,'住所')).length;
+    foot=[['買受',`${buy.length}件`,'','','',buy.reduce((a,r)=>a+(r.cost_jpy||0),0)],['売却',`${os.length}件`,'','','',os.reduce((a,o)=>a+(o.item_price_jpy||0),0)]];
+    if(noName) notes.push(`買受のうち${noName}件は相手方の氏名か住所が空です（仕入れ台帳の「出品者」「住所」に入れると、ここに出ます）。`);
+    notes.push('売却の相手方は販路の注文番号で記録しています。氏名・住所まで要るかは、管轄の警察署に確認してください。','職業・年齢の欄は入れていません（ネット取引で相手を確かめた方法は「確認の方法」に販路と取引URLを入れています）。');
+  }
+  if(kind==='uriage'){
+    title=`売上帳　${y}年`;
+    const os=await allRows(()=>sb.from('orders').select('kno,ordered_on,order_no,platform,country,item_price_jpy,ship_charged_jpy,ship_actual_jpy,sales_fee_jpy,payoneer_fee_jpy,duty_jpy,promo_fee_jpy,listing_fee_jpy,other_fee_jpy,return_cost_jpy,items(title,memo,specs,cost_jpy)').gte('ordered_on',from).lte('ordered_on',to).order('ordered_on').order('id'));
+    head=['販売日','品番','品名','販路','国','注文番号','商品代','送料（受取）','売上','販売手数料ほか','実送料','関税','仕入値'];
+    let est=0; const T=Array(7).fill(0), mon={};
+    os.forEach(o=>{ const s=(o.item_price_jpy||0)+(o.ship_charged_jpy||0), fee=(o.sales_fee_jpy||0)+(o.payoneer_fee_jpy||0)+(o.promo_fee_jpy||0)+(o.listing_fee_jpy||0)+(o.other_fee_jpy||0)+(o.return_cost_jpy||0);
+      if(!hasShip(o)) est++; const v=[o.item_price_jpy||0,o.ship_charged_jpy||0,s,fee,shipOf(o),o.duty_jpy||0,o.items?.cost_jpy||0]; v.forEach((x,i)=>T[i]+=x);
+      const m=o.ordered_on.slice(0,7); (mon[m]??=Array(7).fill(0)).forEach((_,i)=>mon[m][i]+=v[i]);
+      body.push([o.ordered_on.replace(/-/g,'/'),o.kno||'',nm(o.items||{}),o.platform,o.country||'',o.order_no||'',...v]) });
+    foot=[...Object.entries(mon).map(([m,v])=>[`${+m.slice(5)}月`,'','','','','',...v]),['合計',`${os.length}件`,'','','','',...T]];
+    if(est) notes.push(`${est}件は実送料が入っていないので、決まりの額で入れています（推定）。`);
+  }
+  if(kind==='kessan'){
+    title=`確定申告用の年間集計　${y}年`; landscape=false;
+    const os=await allRows(()=>sb.from('orders').select('ordered_on,platform,country,item_price_jpy,ship_charged_jpy,ship_actual_jpy,sales_fee_jpy,payoneer_fee_jpy,duty_jpy,promo_fee_jpy,listing_fee_jpy,other_fee_jpy,return_cost_jpy').gte('ordered_on',from).lte('ordered_on',to).order('id'));
+    const it=await allRows(()=>sb.from('items').select('purchased_on,cost_jpy,sold_on,status').order('kno'));
+    const {data:mc}=await sb.from('monthly_costs').select('*').gte('ym',`${y}01`).lte('ym',`${y}12`);
+    const inv=d=>it.filter(i=>i.purchased_on&&i.purchased_on<=d&&!(i.sold_on&&i.sold_on<=d)).reduce((a,i)=>a+(i.cost_jpy||0),0);
+    const prev=`${y-1}-12-31`, open=inv(prev), close=inv(to);
+    const buy=it.filter(i=>i.purchased_on>=from&&i.purchased_on<=to).reduce((a,i)=>a+(i.cost_jpy||0),0);
+    const sum=f=>os.reduce((a,o)=>a+(f(o)||0),0);
+    const sales=sum(o=>(o.item_price_jpy||0)+(o.ship_charged_jpy||0)), ship=sum(o=>shipOf(o)), est=os.filter(o=>!hasShip(o)).length;
+    const mcs=k=>-(mc||[]).filter(c=>k.includes(c.kind)).reduce((a,c)=>a+c.amount_jpy,0);
+    const fee=sum(o=>(o.sales_fee_jpy||0)+(o.payoneer_fee_jpy||0)+(o.listing_fee_jpy||0)+(o.other_fee_jpy||0))+mcs(['出品関連手数料','その他eBay手数料','Etsy月額プラン','Etsy出品・更新料','Etsy VAT・その他']);
+    const ad=sum(o=>o.promo_fee_jpy)+mcs(['Etsy広告']);
+    const L=[['売上（収入）金額',sales],['　うちeBay',sum(o=>o.platform==='eBay'?(o.item_price_jpy||0)+(o.ship_charged_jpy||0):0)],['　うちEtsyほか',sum(o=>o.platform!=='eBay'?(o.item_price_jpy||0)+(o.ship_charged_jpy||0):0)],
+      ['期首商品棚卸高（'+prev.replace(/-/g,'/')+'）',open],['仕入金額',buy],['期末商品棚卸高（'+to.replace(/-/g,'/')+'）',close],['差引原価',open+buy-close],['差引金額（売上総利益）',sales-(open+buy-close)],
+      ['経費：荷造運賃（実送料）',ship],['経費：関税（販売のとき払った分）',sum(o=>o.duty_jpy)],['経費：支払手数料（販売・決済・出品）',fee],['経費：広告宣伝費',ad],
+      ['経費：返品・返金',sum(o=>o.return_cost_jpy)-(mc||[]).filter(c=>c.kind==='紛争・返金調整').reduce((a,c)=>a+c.amount_jpy,0)],
+      ['経費：ワンロック利用料（外注・保管）',mcs(['ワンロック利用料'])],['経費：eBayStock利用料',mcs(['eBayStock利用料'])],['経費：通信・ソフト',mcs(['通信・ソフト'])],['経費：外注費',mcs(['外注費'])],['経費：地代家賃',mcs(['家賃'])],['経費：その他',mcs(['その他経費'])]];
+    const ex=L.filter(x=>x[0].startsWith('経費')).reduce((a,x)=>a+x[1],0);
+    L.push(['経費の合計',ex],['所得の目安（差引金額−経費）',sales-(open+buy-close)-ex]);
+    const refund=(mc||[]).filter(c=>c.kind==='消費税還付').reduce((a,c)=>a+c.amount_jpy,0); if(refund) L.push(['（別）消費税の還付',refund]);
+    head=['項目','金額（円）']; body=L;
+    notes.push('カード明細・銀行明細の費用は入れていません。ここに無い経費（交通費・梱包材・備品など）は別に足してください。','固定費は「収支」の手入力の月の分だけです（「毎月の定額」は入れていません）。');
+    if(est) notes.push(`${est}件は実送料が入っていないので、決まりの額で入れています（推定）。`);
+    if(it.some(i=>i.status==='sold'&&!i.sold_on)) notes.push('売れたのに販売日が無い商品があり、在庫の額がずれている可能性があります。');
+    if(it.some(i=>!i.cost_jpy)) notes.push('仕入値が空の商品があります（在庫・仕入の額に入っていません）。');
+  }
+  const fmtv=v=>typeof v==='number'?yen(v):esc(v);
+  if(fmt==='csv'){
+    const q=v=>{ v=String(v??''); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v };
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+[[title],head,...body,[],...foot,[],...notes.map(n=>['※'+n])].map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv'}));
+    a.download=`${title.replace(/\s/g,'_')}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+    txmsg.textContent=`${title} のCSVを作りました（${body.length}行）。`; return }
+  const w=window.open('','_blank'); if(!w){ txmsg.textContent='ポップアップが止められました。許可してからもう一度押してください'; return }
+  const num=i=>body.some(r=>typeof r[i]==='number'&&i>0);
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>${title}</title><style>
+@page{size:A4 ${landscape?'landscape':'portrait'};margin:10mm}body{font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;font-size:8.5pt;color:#111;margin:0}
+h1{font-size:14pt;margin:0 0 2mm}.meta{display:flex;justify-content:space-between;margin-bottom:3mm}table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #999;padding:1.2mm 1.6mm;vertical-align:top}th{background:#eee;white-space:nowrap}td.n{text-align:right;white-space:nowrap}
+tfoot td{font-weight:700;background:#f2f2f2}thead{display:table-header-group}tr{page-break-inside:avoid}ul{margin:4mm 0 0;padding-left:5mm;color:#444}
+${kind==='kessan'?'table{width:70%}td:first-child{width:65%}':''}
+.bar{position:sticky;top:0;background:#fff;padding:10px;text-align:center;font-size:14px;box-shadow:0 1px 6px #0002;margin-bottom:10px}@media print{.bar{display:none}}
+</style><div class="bar">${title}（A4${landscape?'横':'縦'}） <button onclick="print()">印刷する</button></div>
+<h1>${title}</h1><div class="meta"><span>期間：${y}/01/01 〜 ${y}/12/31</span><span>作成日：${new Date().toLocaleDateString('ja-JP')}（Tick Takの記録から作成）</span></div>
+<table><thead><tr>${head.map((h,i)=>`<th${num(i)?' class=n':''}>${h}</th>`).join('')}</tr></thead><tbody>${body.map(r=>`<tr>${r.map((v,i)=>`<td${typeof v==='number'&&i>0?' class=n':''}>${i===0&&kind!=='kessan'?esc(v):fmtv(v)}</td>`).join('')}</tr>`).join('')||`<tr><td colspan=${head.length}>この年の記録はありません</td></tr>`}</tbody>
+${foot.length?`<tfoot>${foot.map(r=>`<tr>${r.map((v,i)=>`<td${typeof v==='number'?' class=n':''}>${fmtv(v)}</td>`).join('')}</tr>`).join('')}</tfoot>`:''}</table>
+${notes.length?`<ul>${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}`);
+  w.document.close(); txmsg.textContent=`${title} を開きました（${body.length}行）。`; }
+(()=>{ const y=new Date().getFullYear(); txy.innerHTML=[y,y-1,y-2].map(v=>`<option value="${v}">${v}年</option>`).join('') })();
 async function loadProfit(){
   const months=monthsBack(cm.value,+cn.value), from=`${months[0].slice(0,4)}-${months[0].slice(4)}-01`;
   const {data:os}=await sb.from('orders').select('ordered_on,platform,country,item_price_jpy,ship_charged_jpy,ship_actual_jpy,ship_est_jpy,sales_fee_jpy,payoneer_fee_jpy,duty_jpy,promo_fee_jpy,items(cost_jpy)').gte('ordered_on',from);
@@ -2580,7 +2666,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020203204';
+const BUILD='20261020203521';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
