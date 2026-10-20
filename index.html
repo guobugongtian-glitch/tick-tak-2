@@ -860,8 +860,8 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
       <label>仕入先URL<input name="supplier_url"></label>
     </div></fieldset>
     <fieldset class="fs-list"><legend>商品名と説明</legend>
-      <label class="sub">商品名（英語・<span id="tlen">0</span>/80字）</label>
-      <textarea name="title" maxlength="80" rows="3" class="ttl" placeholder="[Near MINT] Brand Model Ref ... Watch From JAPAN" oninput="tlen.textContent=this.value.length;seoCheck()"></textarea>
+      <label class="sub">商品名（英語・<span id="tlen">0</span>/140字）</label>
+      <textarea name="title" maxlength="140" rows="3" class="ttl" placeholder="[Near MINT] Brand Model Ref ... Watch From JAPAN" oninput="tlen.textContent=this.value.length;seoCheck()"></textarea>
       <div class="row"><button class="btn s" type="button" onclick="titleIdeas()">売れたタイトルから案を出す</button><button class="btn s" type="button" onclick="boostTitle()">空いた字数に検索語を足す</button><button class="btn s" type="button" onclick="otherTitles()">ほかのセラーのタイトルを見る</button></div><div id="tideas" class="tideas"></div>
       <div id="seo" class="note"></div>
       <div class="g2" style="margin-top:8px">
@@ -2445,7 +2445,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020174009';
+const BUILD='20261020174411';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
