@@ -798,7 +798,7 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
     <div class="row"><button class="btn" onclick="etsyRvTitles()">✓したタイトルをEtsyで変える</button><label class="sub"><input type="checkbox" id="et_all" onchange="document.querySelectorAll('.ertit').forEach(c=>c.checked=this.checked)"> 全部に✓</label><span class="sub" id="etmsg2" style="white-space:pre-wrap"></span></div>
     <div id="ertlist"></div>
     <h3>広告の数字（Etsyから貼る）</h3>
-    <p class="sub" style="margin-top:0">表示回数（インプレッション）・クリックはAPIで取れないので、Etsy広告の画面から貼ります。①<a href="https://www.etsy.com/your/shops/me/advertising?date_range=last_30" target="_blank" rel="noopener">Etsy広告を開く ↗</a> ②下の商品の表で、表示する件数をいちばん多くする ③表の上から下までなぞってコピー（全部選択 ⌘A でもOK）④ここに貼って「入れる」。月1回くらいで十分です。</p>
+    <p class="sub" style="margin-top:0">表示回数（インプレッション）・クリックはAPIで取れないので、Etsy広告の画面から貼ります。①<a href="https://www.etsy.com/your/shops/me/advertising?date_range=last_30" target="_blank" rel="noopener">Etsy広告を開く ↗</a> ②画面のどこかを押して 全部選択（⌘A）→コピー（⌘C）③ここに貼って「入れる」。商品の表は15件ずつなので、Etsyで「次へ」→ ②③ をページの数だけくり返します（入れた分は消えずに足されます）。月1回くらいで十分です。</p>
     <textarea id="eradpaste" rows="4" style="width:100%" placeholder="ここにEtsy広告の画面を貼る"></textarea>
     <div class="row"><button class="btn" onclick="etsyAdsImport()">貼った広告の数字を入れる</button><span class="sub" id="eradmsg" style="white-space:pre-wrap"></span></div>
     <div id="eradlist"></div>
@@ -2722,7 +2722,7 @@ async function etsyAdsImport(){ if(!window.__erL){ eradmsg.textContent='先に�
     if(!l){ miss.push(r.title.slice(0,50)); continue }
     const e={...(l.it.etsy||{}),ads:{from:p.from||null,to:p.to||null,at,views:r.views,clicks:r.clicks,orders:r.orders,sales:r.sales,spend:r.spend}};
     const {error}=await sb.from('items').update({etsy:e}).eq('kno',+l.k); if(error){ miss.push(l.k+'：'+error.message); continue } l.it.etsy=e; n++; }
-  eradmsg.textContent=`${p.rows.length}件読んで、${n}件を入れました${p.from?`（${p.from}〜${p.to}）`:''}`+(miss.length?`\n品番が見つからない：\n${miss.join('\n')}`:'')+(p.rows.length<=15?'\n※15件だけでした。Etsyの表で表示する件数を増やすと全部入ります':'');
+  eradmsg.textContent=`${p.rows.length}件読んで、${n}件を入れました${p.from?`（${p.from}〜${p.to}）`:''}`+(miss.length?`\n品番が見つからない：\n${miss.join('\n')}`:'')+(p.rows.length<=15?'\nEtsyの表の「次へ」を押して、次のページも同じように貼ってください':'');
   eradpaste.value=''; drawEtsyRv(); }
 function drawEtsyAds(){ const A=(window.__erL||[]).filter(l=>l.it?.etsy?.ads&&l.it.status!=='sold').map(l=>({l,a:l.it.etsy.ads}));
   if(!A.length){ eradlist.innerHTML='<p class="sub">まだ入っていません</p>'; return }
@@ -2841,7 +2841,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261021112452';
+const BUILD='20261021112614';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
