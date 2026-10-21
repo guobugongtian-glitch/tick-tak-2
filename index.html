@@ -2661,24 +2661,21 @@ async function etsyRvCut(){ const sel=[...document.querySelectorAll('.ercut:chec
 //   スペック（Brand・Model・型番・性別・文字盤・大きさ・動き方）があればそこから、無ければ古いタイトルから状態と JAPAN を外して並べ直す
 const ER_COND=[[/^(near ?mint|n ?mint)\+*/i,'Near Mint'],[/^mint\+*/i,'Mint'],[/^exc\+?\s*5/i,'Excellent Condition'],[/^exc\+?\s*4/i,'Very Good Condition'],[/^exc\+?\d?/i,'Excellent Condition'],[/^unused/i,'Unused']];
 function erCondWord(t,it){ for(const [re,w] of ER_COND){ const m=re.exec(String(it?.condition||'').trim())||re.exec(t.replace(/^\[/,'').trim()); if(m) return w } return '' }
-function erTitleIdea(l){ const it=l.it||{}, sp=it.specs||{}, v=k=>String(sp[k]||'').trim();
+function erTitleIdea(l){ const it=l.it||{}, brand=String(it.specs?.Brand||'').trim();
   let t=l.title.replace(/^\s*\[[^\]]*\]\s*/,'');
-  const box=/w\/ ?box|with box|in box/i.test(t)||/box|箱/i.test(it.accessories||'');
-  t=t.replace(/^(Near ?MINT|NEAR MINT|N ?MINT|MINT|Exc\+?\s*\d?|Unused)\+*\s*/i,'').replace(/^w\/ ?box\s*/i,'').replace(/\bw\/ ?box\b/ig,'').replace(/\s*(From\s+)?JAPAN\s*$/i,'').replace(/\s*\|\s*/g,', ').replace(/\s+/g,' ').trim();
+  const box=/w\/ ?box|with box|in box/i.test(t);
   const cond=erCondWord(l.title,it);
-  const dep=/women|ladies/i.test(v('Department')||t)?"Women's":/\bmen/i.test(v('Department')||t)?"Men's":/unisex/i.test(v('Department'))?'Unisex':'';
-  const mv=/quartz|\bqz\b/i.test(v('Movement')||t)?'Quartz':/auto/i.test(v('Movement')||t)?'Automatic':/manual|hand.?wind/i.test(v('Movement')||t)?'Hand-Winding':'';
-  let head;
-  if(v('Brand')&&(v('Model')||v('Reference Number'))){ const model=v('Model'), ref=v('Reference Number');
-    head=[/vintage/i.test(l.title)?'Vintage':'',v('Brand'),model,ref&&!model.includes(ref)?ref:'',dep,'Watch'].filter(Boolean).join(' ');
-    const dial=v('Dial Color'), size=(v('Case Size').match(/[\d.]+/)||[''])[0];
-    const rest=[dial?dial+' Dial':'',[size?size+'mm':'',mv].filter(Boolean).join(' ')].filter(Boolean);
-    t=[head,...rest].join(', ');
-  } else { t=t.replace(/\bqz\b/ig,'Quartz').replace(/\bWomen'?s? Watch\b/i,"Women's Watch"); if(/vintage/i.test(l.title)&&!/^vintage/i.test(t)) t='Vintage '+t.replace(/\bvintage\s*/i,''); }
-  const tail=[box?'with Box':'',cond,'From Japan'].filter(Boolean);
-  let out=[t,...tail].join(', ').replace(/,\s*,/g,',').replace(/\s+/g,' ');
-  while(out.length>140){ const parts=t.split(', '); if(parts.length<2){ t=t.slice(0,140-tail.join(', ').length-2).replace(/\s\S*$/,''); out=[t,...tail].join(', '); break } parts.pop(); t=parts.join(', '); out=[t,...tail].join(', ') }
-  return out.replace(/\s*&\s*/g,' and '); }
+  // 古い形の頭（状態・w/box）と終わり（JAPAN）を外す。語はほかは全部残す
+  t=t.replace(/^(Near ?MINT|N ?MINT|MINT|Exc\+?\s*\d?|Unused)\+*\s*/i,'').replace(/\bw\/ ?box\b|\bwith box\b|\bin box\b/ig,'').replace(/\s*(From\s+)?JAPAN\s*$/i,'')
+    .replace(/\s*\|\s*/g,' ').replace(/\bQz\b/ig,'Quartz').replace(/\s+/g,' ').trim();
+  // ブランド名を大文字だけ→普通の書き方に（LONGINES→Longines）。スペックのBrandがあればその書き方
+  if(brand) t=t.replace(new RegExp('\\b'+brand.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','ig'),brand);
+  t=t.replace(/\b([A-Z]{4,})\b/g,w=>w.charAt(0)+w.slice(1).toLowerCase());
+  // Vintage は先頭に
+  if(/\bvintage\b/i.test(t)) t='Vintage '+t.replace(/\bvintage\s*/ig,'').trim();
+  const tail=[box?'with Box':'',cond,'From Japan'].filter(Boolean).join(', ');
+  const room=140-tail.length-2; if(t.length>room){ t=t.slice(0,room); t=t.replace(/\s+\S*$/,'') }
+  return (t.replace(/[,\s]+$/,'')+', '+tail).replace(/\s*&\s*/g,' and ').replace(/\s+/g,' '); }
 function drawEtsyTitles(){ const L=(window.__erL||[]).filter(l=>OLD_TITLE.test(l.title)&&l.it?.status!=='sold');
   window.__erT=L.map(l=>({l,to:erTitleIdea(l)}));
   ertlist.innerHTML=window.__erT.map((x,i)=>`<div style="border-top:1px solid var(--line);padding:8px 0"><label class="row" style="gap:6px;align-items:flex-start"><input type="checkbox" class="ertit" data-i="${i}" checked>
@@ -2808,7 +2805,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261021105133';
+const BUILD='20261021105338';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
