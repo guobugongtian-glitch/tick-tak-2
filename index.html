@@ -794,6 +794,9 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
   <div class="card">
     <h3 style="margin-top:0">タイトルと広告</h3>
     <div id="ertitle" class="sub"></div>
+    <p class="sub">古い形（「Near MINT」「Exc+5」などで始まる）を、ブランド名から始めて最後に状態と「From Japan」を置く形にそろえる案です。案は手で直せます（140字まで）。</p>
+    <div class="row"><button class="btn" onclick="etsyRvTitles()">✓したタイトルをEtsyで変える</button><label class="sub"><input type="checkbox" id="et_all" onchange="document.querySelectorAll('.ertit').forEach(c=>c.checked=this.checked)"> 全部に✓</label><span class="sub" id="etmsg2" style="white-space:pre-wrap"></span></div>
+    <div id="ertlist"></div>
     <p class="sub">広告の成果は商品ごとにはEtsyの画面でしか見られません（APIで取れない）。<a href="https://www.etsy.com/your/shops/me/advertising?date_range=last_30" target="_blank" rel="noopener">Etsy広告を開く ↗</a>　クリックが多いのに注文0の品は、値段か写真1枚目を見直す候補です。</p>
   </div>
 </section>
@@ -2606,7 +2609,7 @@ const erDec=t=>String(t||'').replace(/&#39;/g,"'").replace(/&quot;/g,'"').replac
 const erProfit=(p,c)=>Math.round((p+ER_SHIP_USD)*getS().fx*0.85-ETSY_SHIP-HANDLING-c);
 async function loadEtsyRv(){ ermsg.textContent='Etsyから出品を読んでいます…';
   const r=await etsyCall('active_listings'); if(r.error){ ermsg.textContent='読めませんでした：'+r.error; return }
-  const its=await allRows(()=>sb.from('items').select('kno,status,title,cost_jpy,photos,etsy,first_listed_on,purchased_on').neq('status','sold').order('kno'));
+  const its=await allRows(()=>sb.from('items').select('kno,status,title,cost_jpy,photos,etsy,first_listed_on,purchased_on,specs,condition,accessories').neq('status','sold').order('kno'));
   const ks=r.listings.map(l=>(l.skus||[])[0]).filter(k=>/^\d+$/.test(k||''));
   const {data:sold}=await sb.from('items').select('kno,status,cost_jpy,photos,etsy').in('kno',ks.length?ks.map(Number):[0]).eq('status','sold');
   const byK=new Map([...its,...(sold||[])].map(i=>[String(i.kno),i]));
@@ -2636,6 +2639,7 @@ function drawEtsyRv(){ const L=window.__erL; if(!L) return;
   const soldStill=L.filter(l=>l.it?.status==='sold');
   const old=L.filter(l=>OLD_TITLE.test(l.title)).length;
   ertitle.innerHTML=`タイトルが「Near MINT」「Exc+5」などで始まる古い形：${old}件／ブランド名から始まる形：${L.length-old}件。`;
+  drawEtsyTitles();
   ersum.innerHTML=`Etsyに出品中 <b>${L.length}</b>件（${d1}日以上 ${L.filter(l=>l.days>=d1).length}件・${d2}日以上 ${L.filter(l=>l.days>=d2).length}件）　値下げ候補 <b>${rows.length}</b>件${recent?`（最近下げたので外した ${recent}件）`:''}　Etsyに出ていない在庫 <b>${noE.length}</b>本　SKUなし ${noS.length}件`
     +(soldStill.length?`<br><b style="color:var(--bad,#dc2626)">売れたのにEtsyに残っている：${soldStill.map(l=>erEsc(l.k)).join('・')}</b>（「販売情報」で売れた分を取り込むと自動で止まります）`:'');
 }
@@ -2651,6 +2655,47 @@ async function etsyRvCut(){ const sel=[...document.querySelectorAll('.ercut:chec
   for(const d of r.done){ const x=sel.find(s=>s.l.k===d.sku); const e={...(x.it.etsy||{})}; e.cuts=[...(e.cuts||[]),{on,from:d.from,to:d.to}];
     await sb.from('items').update({etsy:e}).eq('kno',+d.sku); }
   ercmsg.textContent=`値下げしました：${r.done.length}本`+(r.skipped.length?`\nしなかった分：\n${r.skipped.join('\n')}`:'');
+  await loadEtsyRv(); }
+// タイトルの案（2026-10-21）。本人が新しく出している形にそろえる：
+//   「Vintage Gucci 1500L Women's Bangle Watch, Black Dial, 12mm Quartz, Near Mint, From Japan」
+//   スペック（Brand・Model・型番・性別・文字盤・大きさ・動き方）があればそこから、無ければ古いタイトルから状態と JAPAN を外して並べ直す
+const ER_COND=[[/^(near ?mint|n ?mint)\+*/i,'Near Mint'],[/^mint\+*/i,'Mint'],[/^exc\+?\s*5/i,'Excellent Condition'],[/^exc\+?\s*4/i,'Very Good Condition'],[/^exc\+?\d?/i,'Excellent Condition'],[/^unused/i,'Unused']];
+function erCondWord(t,it){ for(const [re,w] of ER_COND){ const m=re.exec(String(it?.condition||'').trim())||re.exec(t.replace(/^\[/,'').trim()); if(m) return w } return '' }
+function erTitleIdea(l){ const it=l.it||{}, sp=it.specs||{}, v=k=>String(sp[k]||'').trim();
+  let t=l.title.replace(/^\s*\[[^\]]*\]\s*/,'');
+  const box=/w\/ ?box|with box|in box/i.test(t)||/box|箱/i.test(it.accessories||'');
+  t=t.replace(/^(Near ?MINT|NEAR MINT|N ?MINT|MINT|Exc\+?\s*\d?|Unused)\+*\s*/i,'').replace(/^w\/ ?box\s*/i,'').replace(/\bw\/ ?box\b/ig,'').replace(/\s*(From\s+)?JAPAN\s*$/i,'').replace(/\s*\|\s*/g,', ').replace(/\s+/g,' ').trim();
+  const cond=erCondWord(l.title,it);
+  const dep=/women|ladies/i.test(v('Department')||t)?"Women's":/\bmen/i.test(v('Department')||t)?"Men's":/unisex/i.test(v('Department'))?'Unisex':'';
+  const mv=/quartz|\bqz\b/i.test(v('Movement')||t)?'Quartz':/auto/i.test(v('Movement')||t)?'Automatic':/manual|hand.?wind/i.test(v('Movement')||t)?'Hand-Winding':'';
+  let head;
+  if(v('Brand')&&(v('Model')||v('Reference Number'))){ const model=v('Model'), ref=v('Reference Number');
+    head=[/vintage/i.test(l.title)?'Vintage':'',v('Brand'),model,ref&&!model.includes(ref)?ref:'',dep,'Watch'].filter(Boolean).join(' ');
+    const dial=v('Dial Color'), size=(v('Case Size').match(/[\d.]+/)||[''])[0];
+    const rest=[dial?dial+' Dial':'',[size?size+'mm':'',mv].filter(Boolean).join(' ')].filter(Boolean);
+    t=[head,...rest].join(', ');
+  } else { t=t.replace(/\bqz\b/ig,'Quartz').replace(/\bWomen'?s? Watch\b/i,"Women's Watch"); if(/vintage/i.test(l.title)&&!/^vintage/i.test(t)) t='Vintage '+t.replace(/\bvintage\s*/i,''); }
+  const tail=[box?'with Box':'',cond,'From Japan'].filter(Boolean);
+  let out=[t,...tail].join(', ').replace(/,\s*,/g,',').replace(/\s+/g,' ');
+  while(out.length>140){ const parts=t.split(', '); if(parts.length<2){ t=t.slice(0,140-tail.join(', ').length-2).replace(/\s\S*$/,''); out=[t,...tail].join(', '); break } parts.pop(); t=parts.join(', '); out=[t,...tail].join(', ') }
+  return out.replace(/\s*&\s*/g,' and '); }
+function drawEtsyTitles(){ const L=(window.__erL||[]).filter(l=>OLD_TITLE.test(l.title)&&l.it?.status!=='sold');
+  window.__erT=L.map(l=>({l,to:erTitleIdea(l)}));
+  ertlist.innerHTML=window.__erT.map((x,i)=>`<div style="border-top:1px solid var(--line);padding:8px 0"><label class="row" style="gap:6px;align-items:flex-start"><input type="checkbox" class="ertit" data-i="${i}" checked>
+    <span style="flex:1;min-width:0"><span class="sub">${x.l.k?`品番 ${erEsc(x.l.k)}　`:''}いま：${erEsc(x.l.title)}</span>
+    <input type="text" maxlength="140" value="${erEsc(x.to)}" data-i="${i}" oninput="window.__erT[+this.dataset.i].to=this.value;this.nextElementSibling.textContent=this.value.length+'字'" style="width:100%;margin-top:4px"><small class="sub">${x.to.length}字</small></span></label></div>`).join('')||'<span class="sub">古い形のタイトルはありません</span>';
+  et_all.checked=true; }
+async function etsyRvTitles(){ const sel=[...document.querySelectorAll('.ertit:checked')].map(c=>window.__erT[+c.dataset.i]);
+  if(!sel.length){ etmsg2.textContent='✓が1つもありません'; return }
+  if(!confirm(`${sel.length}件のタイトルをEtsyで変えます。\n例：${sel[0].l.title}\n→ ${sel[0].to}\n\nよろしいですか？`)) return;
+  let done=[],skipped=[];
+  for(let i=0;i<sel.length;i+=20){ etmsg2.textContent=`Etsyでタイトルを変えています…（${i}/${sel.length}）`;
+    const r=await etsyCall('set_titles',{changes:sel.slice(i,i+20).map(x=>({listing_id:x.l.listing_id,sku:x.l.k,from:x.l.title,to:x.to}))});
+    if(r.error){ skipped.push('止まりました：'+r.error); break } done.push(...r.done); skipped.push(...r.skipped); }
+  const on=new Date(Date.now()+9*36e5).toISOString().slice(0,10);
+  for(const d of done){ const x=sel.find(s=>String(s.l.listing_id)===String(d.listing_id)); if(!x?.it) continue; const e={...(x.it.etsy||{})}; e.titles=[...(e.titles||[]),{on,from:d.from,to:d.to}];
+    await sb.from('items').update({etsy:e}).eq('kno',+x.l.k); }
+  etmsg2.textContent=`変えました：${done.length}件`+(skipped.length?`\nしなかった分：\n${skipped.join('\n')}`:'');
   await loadEtsyRv(); }
 async function etsyConnect(){ etmsg.textContent='Etsyの許可画面を用意しています…'; const r=await etsyCall('auth_url');
   if(r.error){ etmsg.textContent='接続できません：'+r.error; return }
@@ -2763,7 +2808,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261021104903';
+const BUILD='20261021105133';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
