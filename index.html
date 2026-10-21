@@ -779,7 +779,7 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
       <label><input type="checkbox" id="er_recent" checked onchange="drawEtsyRv()"> <input id="er_rd" type="number" value="14" style="width:50px" oninput="drawEtsyRv()"> 日以内に下げた品は外す</label></div>
     <p class="sub" style="margin:4px 0 0">利益＝（値段＋受け取る送料$<span id="er_shipusd"></span>）×為替×（1−Etsy手数料15%）−実送料<span id="er_ship"></span>円−仕入値。仕入値の無い品は出しません。新しい値段は手で直せます。</p>
     <div class="row" style="margin-top:8px"><button class="btn" onclick="etsyRvCut()">✓した品をEtsyで値下げする</button><label class="sub"><input type="checkbox" id="er_all" onchange="document.querySelectorAll('.ercut').forEach(c=>c.checked=this.checked)"> 全部に✓</label><span class="sub" id="ercmsg" style="white-space:pre-wrap"></span></div>
-    <div class="tbl"><table><thead><tr><th></th><th></th><th>品番</th><th>タイトル</th><th class="n">日数</th><th class="n">閲覧</th><th class="n">♡</th><th class="n">いまの値段</th><th class="n">新しい値段</th><th class="n">利益</th><th>前の値下げ</th></tr></thead><tbody id="erbody"></tbody></table></div>
+    <div class="tbl"><table><thead><tr><th></th><th></th><th>品番</th><th>タイトル</th><th class="n">日数</th><th class="n">閲覧</th><th class="n">♡</th><th class="n">広告 表示/クリック/注文</th><th class="n">いまの値段</th><th class="n">新しい値段</th><th class="n">利益</th><th>前の値下げ</th></tr></thead><tbody id="erbody"></tbody></table></div>
   </div>
   <div class="card">
     <h3 style="margin-top:0">Etsyに出ていない在庫</h3>
@@ -797,7 +797,11 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
     <p class="sub">古い形（「Near MINT」「Exc+5」などで始まる）を、ブランド名から始めて最後に状態と「From Japan」を置く形にそろえる案です。案は手で直せます（140字まで）。</p>
     <div class="row"><button class="btn" onclick="etsyRvTitles()">✓したタイトルをEtsyで変える</button><label class="sub"><input type="checkbox" id="et_all" onchange="document.querySelectorAll('.ertit').forEach(c=>c.checked=this.checked)"> 全部に✓</label><span class="sub" id="etmsg2" style="white-space:pre-wrap"></span></div>
     <div id="ertlist"></div>
-    <p class="sub">広告の成果は商品ごとにはEtsyの画面でしか見られません（APIで取れない）。<a href="https://www.etsy.com/your/shops/me/advertising?date_range=last_30" target="_blank" rel="noopener">Etsy広告を開く ↗</a>　クリックが多いのに注文0の品は、値段か写真1枚目を見直す候補です。</p>
+    <h3>広告の数字（Etsyから貼る）</h3>
+    <p class="sub" style="margin-top:0">表示回数（インプレッション）・クリックはAPIで取れないので、Etsy広告の画面から貼ります。①<a href="https://www.etsy.com/your/shops/me/advertising?date_range=last_30" target="_blank" rel="noopener">Etsy広告を開く ↗</a> ②下の商品の表で、表示する件数をいちばん多くする ③表の上から下までなぞってコピー（全部選択 ⌘A でもOK）④ここに貼って「入れる」。月1回くらいで十分です。</p>
+    <textarea id="eradpaste" rows="4" style="width:100%" placeholder="ここにEtsy広告の画面を貼る"></textarea>
+    <div class="row"><button class="btn" onclick="etsyAdsImport()">貼った広告の数字を入れる</button><span class="sub" id="eradmsg" style="white-space:pre-wrap"></span></div>
+    <div id="eradlist"></div>
   </div>
 </section>
 
@@ -2629,8 +2633,8 @@ function drawEtsyRv(){ const L=window.__erL; if(!L) return;
     rows.push({l,it,np:+np.toFixed(2),lc}); }
   window.__erRows=rows;
   erbody.innerHTML=rows.map((x,i)=>{ const ph=x.it.photos?.[0]; return `<tr><td><input type="checkbox" class="ercut" data-i="${i}" checked></td><td class="ph">${ph?`<img src="${erEsc(thumb(ph))}" loading="lazy" style="width:44px;height:44px;object-fit:cover;border-radius:6px">`:''}</td>
-    <td><a class=k onclick="openItem(${+x.l.k})">${erEsc(x.l.k)}</a></td><td><a href="${erEsc(x.l.url)}" target="_blank" rel="noopener">${erEsc(x.l.title.slice(0,46))}</a></td><td class="n">${x.l.days}</td><td class="n">${x.l.views??''}</td><td class="n">${x.l.fav??''}</td>
-    <td class="n">$${x.l.price.toFixed(2)}</td><td class="n"><input type="number" step="0.01" value="${x.np}" style="width:80px" data-i="${i}" oninput="erEdit(this)"></td><td class="n" id="erp${i}">${yen(erProfit(x.np,x.it.cost_jpy))}</td><td>${x.lc?`${erEsc(x.lc.on.slice(5))} $${x.lc.from}→$${x.lc.to}`:''}</td></tr>` }).join('')||'<tr><td colspan="11" class="sub">下げる品はありません</td></tr>';
+    <td><a class=k onclick="openItem(${+x.l.k})">${erEsc(x.l.k)}</a></td><td><a href="${erEsc(x.l.url)}" target="_blank" rel="noopener">${erEsc(x.l.title.slice(0,46))}</a></td><td class="n">${x.l.days}</td><td class="n">${x.l.views??''}</td><td class="n">${x.l.fav??''}</td><td class="n">${erAdCell(x.it)}</td>
+    <td class="n">$${x.l.price.toFixed(2)}</td><td class="n"><input type="number" step="0.01" value="${x.np}" style="width:80px" data-i="${i}" oninput="erEdit(this)"></td><td class="n" id="erp${i}">${yen(erProfit(x.np,x.it.cost_jpy))}</td><td>${x.lc?`${erEsc(x.lc.on.slice(5))} $${x.lc.from}→$${x.lc.to}`:''}</td></tr>` }).join('')||'<tr><td colspan="12" class="sub">下げる品はありません</td></tr>';
   er_all.checked=true;
   const onE=new Set(L.map(l=>l.k)), noE=window.__erI.filter(i=>!onE.has(String(i.kno)));
   erno.innerHTML=noE.length?noE.map(i=>`<div>${i.status==='stock'?'保管':'出品'}　品番 <a href="#" onclick="openItem(${+i.kno});return false">${+i.kno}</a>　${erEsc((i.title||'（タイトルなし）').slice(0,60))}</div>`).join(''):'<span class="sub">ありません</span>';
@@ -2639,7 +2643,7 @@ function drawEtsyRv(){ const L=window.__erL; if(!L) return;
   const soldStill=L.filter(l=>l.it?.status==='sold');
   const old=L.filter(l=>OLD_TITLE.test(l.title)).length;
   ertitle.innerHTML=`タイトルが「Near MINT」「Exc+5」などで始まる古い形：${old}件／ブランド名から始まる形：${L.length-old}件。`;
-  drawEtsyTitles();
+  drawEtsyTitles(); drawEtsyAds();
   ersum.innerHTML=`Etsyに出品中 <b>${L.length}</b>件（${d1}日以上 ${L.filter(l=>l.days>=d1).length}件・${d2}日以上 ${L.filter(l=>l.days>=d2).length}件）　値下げ候補 <b>${rows.length}</b>件${recent?`（最近下げたので外した ${recent}件）`:''}　Etsyに出ていない在庫 <b>${noE.length}</b>本　SKUなし ${noS.length}件`
     +(soldStill.length?`<br><b style="color:var(--bad,#dc2626)">売れたのにEtsyに残っている：${soldStill.map(l=>erEsc(l.k)).join('・')}</b>（「販売情報」で売れた分を取り込むと自動で止まります）`:'');
 }
@@ -2695,6 +2699,37 @@ async function etsyRvTitles(){ const sel=[...document.querySelectorAll('.ertit:c
     await sb.from('items').update({etsy:e}).eq('kno',+x.l.k); }
   etmsg2.textContent=`変えました：${done.length}件`+(skipped.length?`\nしなかった分：\n${skipped.join('\n')}`:'');
   await loadEtsyRv(); }
+// Etsy広告の数字（2026-10-21 本人の希望）。広告の商品別の表はAPIで取れないので、画面をコピーして貼ってもらう
+//   貼った文字から「表示 クリック クリック率 注文 $売上 $支出 ROAS」の並びを探し、その前にある商品名の行と組にする
+//   商品名でEtsyの出品（タイトル）を探して品番につなぎ、items.etsy.ads に {from,to,at,views,clicks,orders,sales,spend} で入れる
+const erNorm=t=>erDec(t).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const erAdCell=it=>{ const a=it?.etsy?.ads; return a?`${yen(a.views)}/${yen(a.clicks)}/${a.orders}`:'' };
+function etsyAdsParse(txt){ const lines=String(txt).split(/\r?\n/).map(x=>x.trim()).filter(Boolean), out=[];
+  const num=x=>+String(x).replace(/[$,]/g,'');
+  const pm=/\((\d+)月(\d+)日\s*-\s*(\d+)月(\d+)日\)/.exec(txt), y=new Date().getFullYear();
+  const per=pm?{from:`${+pm[1]>new Date().getMonth()+1?y-1:y}-${pm[1].padStart(2,'0')}-${pm[2].padStart(2,'0')}`,to:`${y}-${pm[3].padStart(2,'0')}-${pm[4].padStart(2,'0')}`}:{};
+  let title='';
+  for(const ln of lines){
+    const m=/^([\d,]+)\s+([\d,]+)\s+([\d.]+%)\s+([\d,]+)\s+(\$[\d,.]+)\s+(\$[\d,.]+)\s+([\d.]+)$/.exec(ln.replace(/\t/g,' ').replace(/\s+/g,' '));
+    if(m){ if(title) out.push({title,views:num(m[1]),clicks:num(m[2]),orders:num(m[4]),sales:num(m[5]),spend:num(m[6])}); title=''; continue }
+    if(ln.length>=15&&/[A-Za-z]/.test(ln)&&!/宣伝|ステータス|広告|ROAS|クリック/.test(ln)) title=ln; }
+  return {rows:out,...per}; }
+async function etsyAdsImport(){ if(!window.__erL){ eradmsg.textContent='先に「Etsyから読み直す」を押してください'; return }
+  const p=etsyAdsParse(eradpaste.value); if(!p.rows.length){ eradmsg.textContent='広告の表が見つかりませんでした。Etsy広告の画面の、商品の表の部分を貼ってください'; return }
+  const L=window.__erL.filter(l=>l.it), byN=new Map(L.map(l=>[erNorm(l.title),l]));
+  const at=new Date(Date.now()+9*36e5).toISOString().slice(0,10); let n=0; const miss=[];
+  for(const r of p.rows){ const k=erNorm(r.title); const l=byN.get(k)||L.find(x=>{ const t=erNorm(x.title); return t.startsWith(k.slice(0,40))||k.startsWith(t.slice(0,40)) });
+    if(!l){ miss.push(r.title.slice(0,50)); continue }
+    const e={...(l.it.etsy||{}),ads:{from:p.from||null,to:p.to||null,at,views:r.views,clicks:r.clicks,orders:r.orders,sales:r.sales,spend:r.spend}};
+    const {error}=await sb.from('items').update({etsy:e}).eq('kno',+l.k); if(error){ miss.push(l.k+'：'+error.message); continue } l.it.etsy=e; n++; }
+  eradmsg.textContent=`${p.rows.length}件読んで、${n}件を入れました${p.from?`（${p.from}〜${p.to}）`:''}`+(miss.length?`\n品番が見つからない：\n${miss.join('\n')}`:'')+(p.rows.length<=15?'\n※15件だけでした。Etsyの表で表示する件数を増やすと全部入ります':'');
+  eradpaste.value=''; drawEtsyRv(); }
+function drawEtsyAds(){ const A=(window.__erL||[]).filter(l=>l.it?.etsy?.ads&&l.it.status!=='sold').map(l=>({l,a:l.it.etsy.ads}));
+  if(!A.length){ eradlist.innerHTML='<p class="sub">まだ入っていません</p>'; return }
+  A.sort((x,y)=>(x.a.orders?1:0)-(y.a.orders?1:0)||y.a.clicks-x.a.clicks);
+  const per=A[0].a.from?`${A[0].a.from.slice(5)}〜${A[0].a.to.slice(5)}`:A[0].a.at;
+  eradlist.innerHTML=`<p class="sub">期間 ${per}。注文0でクリックが多い順（＝来ているのに買われていない品。値段・写真1枚目・タイトルの見直し候補）</p><div class="tbl"><table><thead><tr><th>品番</th><th>タイトル</th><th class="n">表示</th><th class="n">クリック</th><th class="n">クリック率</th><th class="n">注文</th><th class="n">広告費</th><th class="n">いまの値段</th></tr></thead><tbody>`
+    +A.map(({l,a})=>`<tr><td><a class=k onclick="openItem(${+l.k})">${erEsc(l.k)}</a></td><td><a href="${erEsc(l.url)}" target="_blank" rel="noopener">${erEsc(l.title.slice(0,46))}</a></td><td class="n">${yen(a.views)}</td><td class="n">${yen(a.clicks)}</td><td class="n">${a.views?(a.clicks/a.views*100).toFixed(1)+'%':''}</td><td class="n">${a.orders}</td><td class="n">$${a.spend.toFixed(2)}</td><td class="n">$${l.price.toFixed(2)}</td></tr>`).join('')+'</tbody></table></div>'; }
 async function etsyConnect(){ etmsg.textContent='Etsyの許可画面を用意しています…'; const r=await etsyCall('auth_url');
   if(r.error){ etmsg.textContent='接続できません：'+r.error; return }
   window.open(r.url,'_blank'); etmsg.textContent='Etsyの画面で許可したら、「Etsyの接続を確認」を押してください。'; }
@@ -2806,7 +2841,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261021105429';
+const BUILD='20261021112452';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
