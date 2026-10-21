@@ -2669,8 +2669,9 @@ function erTitleIdea(l){ const it=l.it||{}, brand=String(it.specs?.Brand||'').tr
   t=t.replace(/^(Near ?MINT|N ?MINT|MINT|Exc\+?\s*\d?|Unused)\+*\s*/i,'').replace(/\bw\/ ?box\b|\bwith box\b|\bin box\b/ig,'').replace(/\s*(From\s+)?JAPAN\s*$/i,'')
     .replace(/\s*\|\s*/g,' ').replace(/\bQz\b/ig,'Quartz').replace(/\s+/g,' ').trim();
   // ブランド名を大文字だけ→普通の書き方に（LONGINES→Longines）。スペックのBrandがあればその書き方
-  if(brand) t=t.replace(new RegExp('\\b'+brand.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','ig'),brand);
+  if(/[A-Z]/.test(brand)) t=t.replace(new RegExp('\\b'+brand.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','ig'),brand);
   t=t.replace(/\b([A-Z]{4,})\b/g,w=>w.charAt(0)+w.slice(1).toLowerCase());
+  t=t.replace(/\bMens\b/g,"Men's").replace(/\b(Womens|Woman|Women)\b(?!')/g,"Women's").replace(/^./,c=>c.toUpperCase());
   // Vintage は先頭に
   if(/\bvintage\b/i.test(t)) t='Vintage '+t.replace(/\bvintage\s*/ig,'').trim();
   const tail=[box?'with Box':'',cond,'From Japan'].filter(Boolean).join(', ');
@@ -2805,7 +2806,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261021105338';
+const BUILD='20261021105429';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
