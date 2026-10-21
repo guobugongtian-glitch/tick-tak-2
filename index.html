@@ -545,7 +545,7 @@ td.st .sv.i{background:rgba(108,76,245,.1);color:var(--accent)}
 #v-items .stl,#v-items .st,th.st,#soldcard,#rvcard,#ebmsg,#ebpol,.row:has(> button[onclick="ebayConnect()"]),
 #phbtn,#verbtn,#chkbtn,#revbtn,#endbtn,#qbtn,#pubbtn,button[onclick="lookupSpecs()"],button[onclick="otherTitles()"],
 /* Etsyのアプリが審査中のあいだは、Etsyとつなぐ機能も隠す（審査が通ったらこの行を消す） */
-button[onclick="etsyDraft()"],.row:has(> button[onclick="etsyConnect()"]),
+button[onclick="etsyDraft()"],.row:has(> button[onclick="etsyConnect()"]),nav button[data-v="etsyrv"],button[onclick="go('etsyrv')"],
 label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_policy"]),label:has(> input[name="store_cat1"]),label:has(> select[name="ebay_condition"]){display:none!important}
 </style>
 </head>
@@ -579,6 +579,7 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
     <button data-v="card" class="mh"><span>カード明細</span></button>
     <button data-v="bank" class="mh"><span>銀行明細</span></button>
     <button data-v="orders" class="mh"><span>販売情報</span></button>
+    <button data-v="etsyrv" class="mh"><span>Etsy見直し</span></button>
     <button data-v="io" class="mh"><span>取込/設定</span></button>
     <button data-v="more" class="mo"><svg class="ic" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>その他</span></button>
   </nav>
@@ -627,6 +628,7 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
     <button onclick="go('buy')">仕入れ台帳</button>
     <button onclick="go('research')">リサーチ・利益計算</button>
     <button onclick="go('orders')">販売情報</button>
+    <button onclick="go('etsyrv')">Etsyの出品の見直し</button>
     <button onclick="go('card')">カード明細</button>
     <button onclick="go('bank')">銀行明細</button>
     <button onclick="go('io')">取込・設定</button>
@@ -761,6 +763,39 @@ label:has(> input[name="shipping_service"]),label:has(> input[name="shipping_pol
   <div class="card"><div class="row"><button class="btn" onclick="elogiCsv()">eLogi CSV（✓したEtsyの注文）</button><span class="sub">2件以上✓すると1ファイルにまとめます</span>
     <a class="btn s" href="https://www.elogi.jp/users/login" target="_blank" rel="noopener" style="text-decoration:none">eLogiを開く ↗</a><a class="btn s" href="https://cpass.ebay.com/" target="_blank" rel="noopener" style="text-decoration:none">CPaSSを開く ↗</a></div><p class="sub" id="elmsg" style="white-space:pre-wrap;margin:4px 0 0"></p></div>
   <div class="tbl"><table><thead><tr><th></th><th>注文日</th><th>注文番号</th><th>品番</th><th>販路</th><th class="n">商品価格</th><th class="n">販売送料</th><th class="n">実送料</th><th class="n">関税</th><th>国</th><th>状態</th><th class="n">仕入値</th><th class="n">利益</th></tr></thead><tbody id="obody"></tbody></table></div>
+</section>
+
+<!-- Etsyの出品の見直し（2026-10-21 本人の希望）：在庫の売り切りに向けて、Etsyの出品を値下げ・点検する -->
+<section id="v-etsyrv" class="hide">
+  <div class="card">
+    <div class="row"><button class="btn" onclick="loadEtsyRv()">Etsyから読み直す</button><span class="sub" id="ermsg"></span></div>
+    <div id="ersum" class="sub" style="margin-top:6px"></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">値下げ</h3>
+    <div class="row sub">出して <input id="er_d1" type="number" value="90" style="width:60px" oninput="drawEtsyRv()"> 日以上は <input id="er_p1" type="number" value="10" style="width:50px" oninput="drawEtsyRv()"> %、
+      <input id="er_d2" type="number" value="180" style="width:60px" oninput="drawEtsyRv()"> 日以上は <input id="er_p2" type="number" value="20" style="width:50px" oninput="drawEtsyRv()"> % 下げる</div>
+    <div class="row sub">1本に残す利益 <input id="er_min" type="number" value="3000" style="width:80px" oninput="drawEtsyRv()"> 円　
+      <label><input type="checkbox" id="er_recent" checked onchange="drawEtsyRv()"> <input id="er_rd" type="number" value="14" style="width:50px" oninput="drawEtsyRv()"> 日以内に下げた品は外す</label></div>
+    <p class="sub" style="margin:4px 0 0">利益＝（値段＋受け取る送料$<span id="er_shipusd"></span>）×為替×（1−Etsy手数料15%）−実送料<span id="er_ship"></span>円−仕入値。仕入値の無い品は出しません。新しい値段は手で直せます。</p>
+    <div class="row" style="margin-top:8px"><button class="btn" onclick="etsyRvCut()">✓した品をEtsyで値下げする</button><label class="sub"><input type="checkbox" id="er_all" onchange="document.querySelectorAll('.ercut').forEach(c=>c.checked=this.checked)"> 全部に✓</label><span class="sub" id="ercmsg" style="white-space:pre-wrap"></span></div>
+    <div class="tbl"><table><thead><tr><th></th><th></th><th>品番</th><th>タイトル</th><th class="n">日数</th><th class="n">閲覧</th><th class="n">♡</th><th class="n">いまの値段</th><th class="n">新しい値段</th><th class="n">利益</th><th>前の値下げ</th></tr></thead><tbody id="erbody"></tbody></table></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Etsyに出ていない在庫</h3>
+    <p class="sub" style="margin-top:0">Tick Takでは在庫（出品・保管）なのに、Etsyに出ていない時計です。開いて「Etsyに下書きを作る」で出せます。</p>
+    <div id="erno"></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">品番（SKU）が入っていない出品</h3>
+    <p class="sub" style="margin-top:0">在庫とつながらないので、ほかで売れても自動で止まりません。Etsyの編集画面で「SKU」に品番を入れてください。</p>
+    <div id="ernosku"></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">タイトルと広告</h3>
+    <div id="ertitle" class="sub"></div>
+    <p class="sub">広告の成果は商品ごとにはEtsyの画面でしか見られません（APIで取れない）。<a href="https://www.etsy.com/your/shops/me/advertising?date_range=last_30" target="_blank" rel="noopener">Etsy広告を開く ↗</a>　クリックが多いのに注文0の品は、値段か写真1枚目を見直す候補です。</p>
+  </div>
 </section>
 
 <!-- 取込/設定 -->
@@ -1012,7 +1047,7 @@ document.querySelectorAll('main>section[id^="v-"]').forEach(sec=>{ const t=docum
 document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button[data-v]').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('main>section').forEach(s=>s.classList.toggle('hide',s.id!=='v-'+b.dataset.v));
-  ({buy:loadBuy,items:loadItems,research:loadResearch,pf:loadPf,cash:loadCash,card:loadCard,bank:loadBank,orders:loadOrders})[b.dataset.v]?.();
+  ({buy:loadBuy,items:loadItems,research:loadResearch,pf:loadPf,cash:loadCash,card:loadCard,bank:loadBank,orders:loadOrders,etsyrv:()=>{ if(!window.__erL) loadEtsyRv() }})[b.dataset.v]?.();
 });
 
 // 商品管理：3段の絞り込み
@@ -2563,6 +2598,60 @@ async function ebayOrders(silent){ const K='ws_orders_at';
 // Etsy：つなぐ・確かめる・売れた分を読む（eBayと同じ流れ。まだつないでいない間は、自動のときは何も出さない）
 async function etsyCall(action,extra){ const {data,error}=await sb.functions.invoke('etsy',{body:{action,...(extra||{})}});
   if(error){ let j={}; try{ j=await error.context.json() }catch(e){} return {...j,error:j.error||error.message} } return data; }
+// Etsyの出品の見直し（2026-10-21）。出品はEtsyから読む（active_listings）、仕入値・状態はTick Takの商品から
+//   値下げの控えは items.etsy.cuts に [{on,from,to}] で残す（「◯日以内に下げた品は外す」に使う）
+const erEsc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ER_SHIP_USD=30, OLD_TITLE=/^(Near ?MINT|N ?MINT|MINT|Exc\+?\d?|\[)/i;
+const erDec=t=>String(t||'').replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/&amp;/g,'&');
+const erProfit=(p,c)=>Math.round((p+ER_SHIP_USD)*getS().fx*0.85-ETSY_SHIP-HANDLING-c);
+async function loadEtsyRv(){ ermsg.textContent='Etsyから出品を読んでいます…';
+  const r=await etsyCall('active_listings'); if(r.error){ ermsg.textContent='読めませんでした：'+r.error; return }
+  const its=await allRows(()=>sb.from('items').select('kno,status,title,cost_jpy,photos,etsy,first_listed_on,purchased_on').neq('status','sold').order('kno'));
+  const ks=r.listings.map(l=>(l.skus||[])[0]).filter(k=>/^\d+$/.test(k||''));
+  const {data:sold}=await sb.from('items').select('kno,status,cost_jpy,photos,etsy').in('kno',ks.length?ks.map(Number):[0]).eq('status','sold');
+  const byK=new Map([...its,...(sold||[])].map(i=>[String(i.kno),i]));
+  window.__erL=r.listings.map(l=>{ const k=(l.skus||[])[0]||''; return {...l,k,it:byK.get(k)||null,title:erDec(l.title),days:Math.floor((Date.now()-new Date(l.created))/864e5)} });
+  window.__erI=its; ermsg.textContent=`${new Date().toLocaleTimeString().slice(0,5)} に読みました`; drawEtsyRv(); }
+function drawEtsyRv(){ const L=window.__erL; if(!L) return;
+  er_shipusd.textContent=ER_SHIP_USD; er_ship.textContent=yen(ETSY_SHIP+HANDLING);
+  const d1=+er_d1.value,p1=+er_p1.value/100,d2=+er_d2.value,p2=+er_p2.value/100,min=+er_min.value,rd=er_recent.checked?+er_rd.value:-1;
+  const today=new Date(Date.now()+9*36e5).toISOString().slice(0,10);
+  const lastCut=it=>{ const c=it?.etsy?.cuts; return c?.length?c[c.length-1]:null };
+  const rows=[]; let recent=0;
+  for(const l of L){ const it=l.it; if(!it||it.status==='sold'||it.cost_jpy==null) continue;
+    const pct=l.days>=d2?p2:l.days>=d1?p1:0; if(!pct) continue;
+    const lc=lastCut(it); if(lc&&rd>=0&&(new Date(today)-new Date(lc.on))/864e5<=rd){ recent++; continue }
+    const floor=Math.ceil((it.cost_jpy+ETSY_SHIP+HANDLING+min)/(getS().fx*0.85)-ER_SHIP_USD)-0.01;
+    let np=Math.max(Math.ceil(l.price*(1-pct))-0.01,floor); if(np>=l.price-0.5) continue;
+    rows.push({l,it,np:+np.toFixed(2),lc}); }
+  window.__erRows=rows;
+  erbody.innerHTML=rows.map((x,i)=>{ const ph=x.it.photos?.[0]; return `<tr><td><input type="checkbox" class="ercut" data-i="${i}" checked></td><td class="ph">${ph?`<img src="${erEsc(thumb(ph))}" loading="lazy" style="width:44px;height:44px;object-fit:cover;border-radius:6px">`:''}</td>
+    <td><a class=k onclick="openItem(${+x.l.k})">${erEsc(x.l.k)}</a></td><td><a href="${erEsc(x.l.url)}" target="_blank" rel="noopener">${erEsc(x.l.title.slice(0,46))}</a></td><td class="n">${x.l.days}</td><td class="n">${x.l.views??''}</td><td class="n">${x.l.fav??''}</td>
+    <td class="n">$${x.l.price.toFixed(2)}</td><td class="n"><input type="number" step="0.01" value="${x.np}" style="width:80px" data-i="${i}" oninput="erEdit(this)"></td><td class="n" id="erp${i}">${yen(erProfit(x.np,x.it.cost_jpy))}</td><td>${x.lc?`${erEsc(x.lc.on.slice(5))} $${x.lc.from}→$${x.lc.to}`:''}</td></tr>` }).join('')||'<tr><td colspan="11" class="sub">下げる品はありません</td></tr>';
+  er_all.checked=true;
+  const onE=new Set(L.map(l=>l.k)), noE=window.__erI.filter(i=>!onE.has(String(i.kno)));
+  erno.innerHTML=noE.length?noE.map(i=>`<div>${i.status==='stock'?'保管':'出品'}　品番 <a href="#" onclick="openItem(${+i.kno});return false">${+i.kno}</a>　${erEsc((i.title||'（タイトルなし）').slice(0,60))}</div>`).join(''):'<span class="sub">ありません</span>';
+  const noS=L.filter(l=>!l.it);
+  ernosku.innerHTML=noS.length?noS.map(l=>`<div>${l.k?`SKU ${erEsc(l.k)}（Tick Takに無い品番）`:'SKUなし'}　${erEsc(l.title.slice(0,60))}　<a href="https://www.etsy.com/your/shops/me/listing-editor/edit/${+l.listing_id}" target="_blank" rel="noopener">編集 ↗</a></div>`).join(''):'<span class="sub">ありません</span>';
+  const soldStill=L.filter(l=>l.it?.status==='sold');
+  const old=L.filter(l=>OLD_TITLE.test(l.title)).length;
+  ertitle.innerHTML=`タイトルが「Near MINT」「Exc+5」などで始まる古い形：${old}件／ブランド名から始まる形：${L.length-old}件。`;
+  ersum.innerHTML=`Etsyに出品中 <b>${L.length}</b>件（${d1}日以上 ${L.filter(l=>l.days>=d1).length}件・${d2}日以上 ${L.filter(l=>l.days>=d2).length}件）　値下げ候補 <b>${rows.length}</b>件${recent?`（最近下げたので外した ${recent}件）`:''}　Etsyに出ていない在庫 <b>${noE.length}</b>本　SKUなし ${noS.length}件`
+    +(soldStill.length?`<br><b style="color:var(--bad,#dc2626)">売れたのにEtsyに残っている：${soldStill.map(l=>erEsc(l.k)).join('・')}</b>（「販売情報」で売れた分を取り込むと自動で止まります）`:'');
+}
+function erEdit(el){ const x=window.__erRows[+el.dataset.i]; x.np=+el.value; $('erp'+el.dataset.i).textContent=yen(erProfit(x.np,x.it.cost_jpy)) }
+async function etsyRvCut(){ const sel=[...document.querySelectorAll('.ercut:checked')].map(c=>window.__erRows[+c.dataset.i]);
+  if(!sel.length){ ercmsg.textContent='✓が1つもありません'; return }
+  const bad=sel.filter(x=>!(x.np>0)||x.np>=x.l.price); if(bad.length){ ercmsg.textContent='新しい値段が今より高い（または空の）品があります：'+bad.map(x=>x.l.k).join('・'); return }
+  if(!confirm(`${sel.length}本をEtsyで値下げします。\n例：${sel.slice(0,3).map(x=>`${x.l.k} $${x.l.price}→$${x.np}`).join('、')}\n\nよろしいですか？`)) return;
+  ercmsg.textContent='Etsyで値段を変えています…';
+  const r=await etsyCall('set_prices',{changes:sel.map(x=>({sku:x.l.k,from:x.l.price,to:x.np}))});
+  if(r.error){ ercmsg.textContent='止まりました：'+r.error; return }
+  const on=new Date(Date.now()+9*36e5).toISOString().slice(0,10);
+  for(const d of r.done){ const x=sel.find(s=>s.l.k===d.sku); const e={...(x.it.etsy||{})}; e.cuts=[...(e.cuts||[]),{on,from:d.from,to:d.to}];
+    await sb.from('items').update({etsy:e}).eq('kno',+d.sku); }
+  ercmsg.textContent=`値下げしました：${r.done.length}本`+(r.skipped.length?`\nしなかった分：\n${r.skipped.join('\n')}`:'');
+  await loadEtsyRv(); }
 async function etsyConnect(){ etmsg.textContent='Etsyの許可画面を用意しています…'; const r=await etsyCall('auth_url');
   if(r.error){ etmsg.textContent='接続できません：'+r.error; return }
   window.open(r.url,'_blank'); etmsg.textContent='Etsyの画面で許可したら、「Etsyの接続を確認」を押してください。'; }
@@ -2674,7 +2763,7 @@ async function linkResearch(){ lkmsg.textContent=' 調べています…';
   lkmsg.textContent=` 型番なし${its.length}件のうち ${n}件をつなぎました（残り${its.length-n}件は合う型番が見つかりません）`; }
 
 // 新しい版が出ていたら自動で読み直す（スマホは前の画面を覚えたままになりやすいので）。開いたとき・アプリに戻ったときに確かめる
-const BUILD='20261020204139';
+const BUILD='20261021104903';
 async function checkBuild(){ if(BUILD==='dev'||location.protocol==='file:') return;
   try{ const v=(await (await fetch('version.txt?'+Date.now(),{cache:'no-store'})).text()).trim();
     if(v&&v!==BUILD&&!document.querySelector('dialog[open]')) location.replace(location.pathname+'?v='+encodeURIComponent(v)) }catch(e){} }
